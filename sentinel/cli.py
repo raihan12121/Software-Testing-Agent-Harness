@@ -321,6 +321,11 @@ def main(argv: list[str] | None = None) -> int:
     review_parser.add_argument("--reviewer", default="human_tester", help="Reviewer name")
     review_parser.add_argument("--rationale", default=None, help="Audit rationale for override")
 
+    # Dashboard command
+    dash_parser = subparsers.add_parser("dashboard", help="Start web dashboard for team metrics and reviews")
+    dash_parser.add_argument("--port", type=int, default=8080, help="Web port (default 8080)")
+    dash_parser.add_argument("--db", default="sentinel_memory.sqlite", help="Path to SQLite memory database")
+
     # Init command
     init_parser = subparsers.add_parser("init", help="Initialize sentinel.config.yaml")
     init_parser.add_argument("--force", action="store_true", help="Overwrite existing configuration file")
@@ -333,10 +338,21 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_plan(args)
     if args.subcommand == "review":
         return cmd_review(args)
+    if args.subcommand == "dashboard":
+        return cmd_dashboard(args)
     if args.subcommand == "init":
         return cmd_init(args)
 
     parser.print_help()
+    return 0
+
+
+def cmd_dashboard(args: argparse.Namespace) -> int:
+    """Start Sentinel web dashboard server."""
+    from sentinel.dashboard.server import start_dashboard_server
+
+    console.print(f"[bold green]Starting Sentinel Dashboard on http://127.0.0.1:{args.port}/[/bold green]")
+    start_dashboard_server(port=args.port, db_path=args.db, blocking=True)
     return 0
 
 

@@ -48,3 +48,7 @@ class TestDeduplicator:
                 merged_results.append(tc)
 
         return merged_results
+
+    def deduplicate(self, test_cases: list[TestCase]) -> list[TestCase]:
+        """Alias for cluster_and_merge."""
+        return self.cluster_and_merge(test_cases)

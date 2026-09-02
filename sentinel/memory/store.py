@@ -62,14 +62,18 @@ class MemoryStore:
         """Persist complete run, test cases, and verdicts with redaction."""
         with self.connection() as conn:
             # 1. Insert run metadata
+            user_id = str(report.summary.get("user_id", "default_user"))
+            team_id = str(report.summary.get("team_id", "default_team"))
             config_snapshot = json.dumps(self.redactor.redact(report.summary))
+
             conn.execute(
                 """
                 INSERT OR REPLACE INTO runs (
                     run_id, project_id, target_type, environment,
                     started_at, finished_at, config_snapshot,
-                    pass_count, fail_count, flaky_count, pending_count
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    pass_count, fail_count, flaky_count, pending_count,
+                    user_id, team_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     report.run_id,
@@ -83,6 +87,8 @@ class MemoryStore:
                     report.fail_count,
                     report.flaky_count,
                     report.pending_count,
+                    user_id,
+                    team_id,
                 ),
             )
 
@@ -183,19 +189,19 @@ class MemoryStore:
         with self.connection() as conn:
             if run_id:
                 query = """
-                SELECT v.id as verdict_id, v.run_id, v.test_id, v.status, v.confidence, v.reasoning,
+                SELECT v.id as verdict_id, v.run_id, v.test_id, v.status, v.confidence, v.reasoning, v.oracle_used,
                        tc.title, tc.module, tc.source_context, tc.schema
                 FROM verdicts v
-                JOIN test_cases tc ON v.test_id = tc.test_id
+                LEFT JOIN test_cases tc ON v.test_id = tc.test_id
                 WHERE v.status = 'pending_review' AND v.run_id = ?
                 """
                 rows = conn.execute(query, (run_id,)).fetchall()
             else:
                 query = """
-                SELECT v.id as verdict_id, v.run_id, v.test_id, v.status, v.confidence, v.reasoning,
+                SELECT v.id as verdict_id, v.run_id, v.test_id, v.status, v.confidence, v.reasoning, v.oracle_used,
                        tc.title, tc.module, tc.source_context, tc.schema
                 FROM verdicts v
-                JOIN test_cases tc ON v.test_id = tc.test_id
+                LEFT JOIN test_cases tc ON v.test_id = tc.test_id
                 WHERE v.status = 'pending_review'
                 ORDER BY v.id DESC
                 """
@@ -331,3 +337,79 @@ class MemoryStore:
                 "SELECT test_id FROM flaky_registry WHERE quarantined = 1"
             ).fetchall()
             return [r["test_id"] for r in rows]
+
+    def get_team_run_history(
+        self,
+        project_id: str,
+        team_id: str | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """Retrieve recent runs filtered by project and optional team (Phase 4)."""
+        with self.connection() as conn:
+            if team_id:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM runs
+                    WHERE project_id = ? AND team_id = ?
+                    ORDER BY started_at DESC
+                    LIMIT ?
+                    """,
+                    (project_id, team_id, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM runs
+                    WHERE project_id = ?
+                    ORDER BY started_at DESC
+                    LIMIT ?
+                    """,
+                    (project_id, limit),
+                ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_trend_metrics(self, project_id: str | None = None) -> dict[str, Any]:
+        """Calculate aggregated trend and quality metrics across runs."""
+        with self.connection() as conn:
+            if project_id and project_id != "all":
+                rows = conn.execute(
+                    """
+                    SELECT pass_count, fail_count, flaky_count, pending_count
+                    FROM runs
+                    WHERE project_id = ?
+                    ORDER BY started_at DESC
+                    LIMIT 50
+                    """,
+                    (project_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT pass_count, fail_count, flaky_count, pending_count
+                    FROM runs
+                    ORDER BY started_at DESC
+                    LIMIT 50
+                    """
+                ).fetchall()
+
+            total_runs = len(rows)
+            total_pass = sum(r["pass_count"] for r in rows)
+            total_fail = sum(r["fail_count"] for r in rows)
+            total_flaky = sum(r["flaky_count"] for r in rows)
+            total_tests = total_pass + total_fail + total_flaky
+            pass_rate = round(total_pass / total_tests, 4) if total_tests > 0 else 1.0
+
+            quarantined_count = conn.execute(
+                "SELECT COUNT(*) as cnt FROM flaky_registry WHERE quarantined = 1"
+            ).fetchone()["cnt"]
+
+            return {
+                "project_id": project_id,
+                "total_runs": total_runs,
+                "total_tests": total_tests,
+                "total_pass": total_pass,
+                "total_fail": total_fail,
+                "total_flaky": total_flaky,
+                "pass_rate": pass_rate,
+                "quarantined_count": quarantined_count,
+            }

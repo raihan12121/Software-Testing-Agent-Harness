@@ -16,7 +16,9 @@ CREATE TABLE IF NOT EXISTS runs (
     pass_count INTEGER,
     fail_count INTEGER,
     flaky_count INTEGER,
-    pending_count INTEGER
+    pending_count INTEGER,
+    user_id TEXT DEFAULT 'default_user',
+    team_id TEXT DEFAULT 'default_team'
 );
 
 CREATE TABLE IF NOT EXISTS test_cases (

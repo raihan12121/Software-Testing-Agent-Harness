@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class TestStep(BaseModel):
@@ -164,3 +164,14 @@ class Report(BaseModel):
     skipped_count: int = 0
     duration_ms: int = 0
     summary: dict[str, Any] = Field(default_factory=dict, description="Summary statistics and metadata")
+
+    @model_validator(mode="after")
+    def compute_counts(self) -> Report:
+        if self.verdicts and (self.pass_count == 0 and self.fail_count == 0 and self.error_count == 0):
+            self.pass_count = sum(1 for v in self.verdicts if v.status == "pass")
+            self.fail_count = sum(1 for v in self.verdicts if v.status == "fail")
+            self.flaky_count = sum(1 for v in self.verdicts if v.status == "flaky")
+            self.error_count = sum(1 for v in self.verdicts if v.status == "error")
+            self.pending_count = sum(1 for v in self.verdicts if v.status == "pending_review")
+            self.skipped_count = sum(1 for v in self.verdicts if v.status == "skipped")
+        return self

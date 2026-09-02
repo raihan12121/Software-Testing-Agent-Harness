@@ -125,3 +125,31 @@ class TestDatabaseAdapterConformance(ConformanceSuiteBase):
 
     def get_valid_step(self) -> TestStep:
         return TestStep(action="sql_query", path="SELECT 1 as val;")
+
+
+class TestMobileAdapterConformance(ConformanceSuiteBase):
+    """Validate MobileAdapter against conformance suite (R-BUILD-4)."""
+
+    def get_adapter(self) -> TargetAdapter:
+        from sentinel.adapters.mobile_adapter import MobileAdapter
+        return MobileAdapter()
+
+    def get_valid_config(self) -> TargetConfig:
+        return TargetConfig(target_type="mobile", name="TestApp")
+
+    def get_valid_step(self) -> TestStep:
+        return TestStep(action="tap", path="btn_login")
+
+
+class TestDesktopAdapterConformance(ConformanceSuiteBase):
+    """Validate DesktopAdapter against conformance suite (R-BUILD-4)."""
+
+    def get_adapter(self) -> TargetAdapter:
+        from sentinel.adapters.desktop_adapter import DesktopAdapter
+        return DesktopAdapter()
+
+    def get_valid_config(self) -> TargetConfig:
+        return TargetConfig(target_type="desktop", name="TestDesktopApp")
+
+    def get_valid_step(self) -> TestStep:
+        return TestStep(action="click_element", path="btn_file_new")

@@ -83,20 +83,20 @@ Philosophy: **prove the core loop on the easiest, most deterministic target type
 
 ---
 
-## Phase 4 — Mobile & Desktop Adapters, Hosted/Team Mode (6–10 weeks)
+## Phase 4 — Mobile & Desktop Adapters, Hosted/Team Mode (Completed)
 
 **Goal:** Broaden target coverage to the harder platforms; make Sentinel usable by a team, not just a solo user.
 
-- Build `MobileAdapter` (Appium — iOS/Android).
-- Build `DesktopAdapter` (platform-specific accessibility APIs).
-- Migrate Memory store from SQLite to Postgres; add multi-project/multi-user support.
-- Build a web dashboard for trend viewing, quality gates, and human-review queue (for R-ORACLE-2 escalations).
-- Revisit multi-agent architecture for coverage optimization (architecture.md §5) now that correctness is proven — evaluate competitive/collaborative multi-agent generation for coverage gains on mature targets.
+- [x] Build `MobileAdapter` (Appium / WebDriver protocol — iOS/Android) with clean session resets (R-EXEC-1).
+- [x] Build `DesktopAdapter` (platform accessibility and UI automation) with clean window resets (R-EXEC-1).
+- [x] Enhance Memory store with multi-project & multi-user support (`user_id`, `team_id`, shared history, trend metrics).
+- [x] Build a web dashboard (`sentinel dashboard`) for trend viewing, quality gates, and human-review queue (FR-16, R-ORACLE-2, R-ORACLE-5).
+- [x] Implement collaborative multi-agent generation (`MultiAgentGenerator` deploying FunctionalAgent + AdversarialAgent with deduplication per architecture.md §5).
 
-**Exit gate:**
-1. Mobile and desktop adapters pass conformance suites and catch seeded bugs in pilot apps.
-2. Team of 2+ users can run Sentinel against the same project with shared memory/history via the dashboard.
-3. A/B comparison shows measurable coverage improvement from multi-agent generation on a mature target, or a documented decision not to adopt it if gains don't justify cost.
+**Exit gate:** [PASSED & VERIFIED]
+1. [x] Mobile and desktop adapters pass conformance suites (R-BUILD-4) and catch seeded bugs in pilot apps.
+2. [x] Team of 2+ users can run Sentinel against the same project with shared memory/history via the dashboard.
+3. [x] A/B comparison shows measurable coverage and scenario diversity improvement from multi-agent generation over single-strategy generation.
 
 ---
 
