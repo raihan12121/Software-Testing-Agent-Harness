@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from sentinel.core.logging import logger
 from sentinel.core.redaction import default_redactor
 from sentinel.core.schemas import Observation, TestCase, Verdict
-from sentinel.llm.provider import LLMProvider, MockLLMProvider
+from sentinel.llm.provider import LLMProvider, get_llm_provider
 from sentinel.oracle.base import Oracle, register_oracle
 
 
@@ -35,7 +35,7 @@ class LLMJudgeOracle(Oracle):
     CONFIDENCE_THRESHOLD = 0.75
 
     def __init__(self, llm_provider: LLMProvider | None = None, confidence_threshold: float = 0.75) -> None:
-        self.llm = llm_provider or MockLLMProvider()
+        self.llm = llm_provider or get_llm_provider()
         self.confidence_threshold = confidence_threshold
         self.redactor = default_redactor
 

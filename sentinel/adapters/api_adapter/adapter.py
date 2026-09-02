@@ -43,7 +43,10 @@ class APIAdapter(TargetAdapter):
             )
 
         parser = OpenAPIParser.from_file(config.spec_path, base_url=config.base_url)
-        return parser.parse()
+        model = parser.parse()
+        if not self.target_config.base_url and model.metadata.get("base_url"):
+            self.target_config.base_url = model.metadata["base_url"]
+        return model
 
     def execute_action(self, action: TestStep) -> Observation:
         """Perform an HTTP request and capture structured observation."""

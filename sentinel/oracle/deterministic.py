@@ -174,6 +174,14 @@ class DeterministicOracle(Oracle):
         if isinstance(node, ast.Constant):
             return node.value, node.value
 
+        if isinstance(node, (ast.List, ast.Tuple)):
+            elements = [self._eval_node(elt, context)[0] for elt in node.elts]
+            return elements, elements
+
+        if isinstance(node, ast.Set):
+            elements_set = {self._eval_node(elt, context)[0] for elt in node.elts}
+            return elements_set, elements_set
+
         if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
             val, actual = self._eval_node(node.operand, context)
             return not bool(val), actual

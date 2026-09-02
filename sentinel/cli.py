@@ -63,6 +63,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     if config_file.exists():
         sentinel_conf = SentinelConfig.load(config_file)
         target_config = sentinel_conf.target
+        if getattr(args, "base_url", None):
+            target_config.base_url = args.base_url
         run_config = sentinel_conf.create_run_config(
             env=env_name,
             run_id=run_id,
@@ -70,7 +72,10 @@ def cmd_run(args: argparse.Namespace) -> int:
             prod_confirmed=args.yes_i_know_prod,
             parallelism=args.parallelism,
             timeout=args.timeout,
+            output_dir=Path(args.output_dir) if getattr(args, "output_dir", None) else None,
         )
+        if getattr(args, "output_dir", None):
+            run_config.output_dir = Path(args.output_dir)
     else:
         # Fallback to direct flags
         target_type = args.target_type or "stub"
@@ -78,6 +83,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             target_type=target_type,
             name=args.target or f"{target_type}-target",
             spec_path=args.target,
+            base_url=getattr(args, "base_url", None),
         )
         run_config = RunConfig(
             run_id=run_id,
@@ -90,8 +96,12 @@ def cmd_run(args: argparse.Namespace) -> int:
             output_dir=Path(args.output_dir or "reports"),
         )
 
+    llm_choice = getattr(args, "llm_provider", "auto")
+    from sentinel.llm.provider import get_llm_provider
+    llm_provider = get_llm_provider(provider_type=llm_choice)
+
     # Load test cases or run planner
-    orchestrator = Orchestrator(target_config, run_config)
+    orchestrator = Orchestrator(target_config, run_config, llm_provider=llm_provider)
 
     if getattr(args, "explore", False):
         if env_name == "production":
@@ -303,6 +313,8 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--config", default="sentinel.config.yaml", help="Path to configuration file")
     run_parser.add_argument("--env", required=True, choices=["local", "staging", "sandbox", "production"], help="Target environment (R-EXEC-4)")
     run_parser.add_argument("-d", "--project-dir", default=None, help="Project folder to auto-scan for targets")
+    run_parser.add_argument("--base-url", default=None, help="Explicit base URL override for API targets")
+    run_parser.add_argument("--llm-provider", default="auto", choices=["auto", "mock", "anthropic"], help="LLM provider implementation (auto, mock, anthropic)")
     run_parser.add_argument("--target", default=None, help="Target spec, URL, or path")
     run_parser.add_argument("--target-type", default="stub", help="Target adapter type (stub, api, cli, web)")
     run_parser.add_argument("--test-file", default=None, help="Path to test cases YAML/JSON file")

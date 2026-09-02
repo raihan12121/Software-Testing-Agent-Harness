@@ -16,7 +16,7 @@ from sentinel.core.schemas import TargetModel, TestCase, TestStep
 from sentinel.generator.base import Generator
 from sentinel.generator.dedup import TestDeduplicator
 from sentinel.generator.validator import GenerationValidator
-from sentinel.llm.provider import LLMProvider, MockLLMProvider
+from sentinel.llm.provider import LLMProvider, get_llm_provider
 from sentinel.planner.base import Scenario, TestPlan
 
 
@@ -24,7 +24,7 @@ class APITestGenerator(Generator):
     """Generates concrete API TestCases from planned scenarios and TargetModel."""
 
     def __init__(self, llm_provider: LLMProvider | None = None) -> None:
-        self.llm_provider = llm_provider or MockLLMProvider()
+        self.llm_provider = llm_provider or get_llm_provider()
         self.validator = GenerationValidator()
         self.dedup = TestDeduplicator()
 
@@ -40,6 +40,13 @@ class APITestGenerator(Generator):
             tc = self._generate_case_for_scenario(scenario, target_model, endpoints_by_path)
             if tc:
                 test_cases.append(tc)
+
+        base_url = target_model.metadata.get("base_url")
+        if base_url:
+            for tc in test_cases:
+                for step in tc.steps:
+                    if "base_url" not in step.metadata:
+                        step.metadata["base_url"] = base_url
 
         # R-GEN-4: Deduplicate and merge near-identical cases
         return self.dedup.cluster_and_merge(test_cases)
@@ -178,6 +185,12 @@ class APITestGenerator(Generator):
             assertions = [f"status_code in [{expected_code}, 200, 204]"]
             if matched_ep.get("responses", {}).get(expected_code, {}).get("schema"):
                 assertions.append("schema_valid == True")
+        step_metadata: dict[str, Any] = {
+            "scenario_id": scenario.id,
+            "expected_response_schema": matched_ep.get("responses", {}).get("200", {}).get("schema"),
+        }
+        if target_model.metadata.get("base_url"):
+            step_metadata["base_url"] = target_model.metadata["base_url"]
 
         step = TestStep(
             action="http_request",
@@ -187,10 +200,7 @@ class APITestGenerator(Generator):
             params=resolved_params,
             body=body,
             timeout_seconds=10.0,
-            metadata={
-                "scenario_id": scenario.id,
-                "expected_response_schema": matched_ep.get("responses", {}).get("200", {}).get("schema"),
-            },
+            metadata=step_metadata,
         )
 
         raw_case = {

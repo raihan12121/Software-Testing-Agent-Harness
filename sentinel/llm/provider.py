@@ -9,9 +9,11 @@ Adheres to:
 from __future__ import annotations
 
 import hashlib
+import os
 import time
 from typing import Any, Protocol, TypeVar, runtime_checkable
 
+import anthropic
 from pydantic import BaseModel
 
 from sentinel.core.logging import logger
@@ -121,3 +123,110 @@ class MockLLMProvider(LLMProvider):
         })
         logger.info(f"MockLLM call completed: hash={prompt_hash} latency={elapsed_ms}ms")
         return instance, metrics
+
+
+class AnthropicLLMProvider(LLMProvider):
+    """Production LLM Provider powered by Anthropic Claude tool calling.
+
+    Adheres strictly to:
+    - TRD.md §2.2 (Structured tool-calling outputs)
+    - rules.md R-SEC-1/R-SEC-2 (API key from env, prompts redacted before transit)
+    - rules.md R-BUILD-3 (Latency, tokens, and cost instrumentation)
+    """
+
+    def __init__(
+        self,
+        model_name: str = "claude-3-5-sonnet-20241022",
+        api_key: str | None = None,
+    ) -> None:
+        self.model_name = model_name
+        self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+        if not self.api_key:
+            raise ValueError(
+                "ANTHROPIC_API_KEY is not configured. Set ANTHROPIC_API_KEY environment variable (R-SEC-1)."
+            )
+        self.client = anthropic.Anthropic(api_key=self.api_key)
+        self.redactor = default_redactor
+
+    def generate_structured(
+        self,
+        prompt: str,
+        response_model: type[T],
+        system_prompt: str | None = None,
+    ) -> tuple[T, LLMUsageMetrics]:
+        """Generate structured Pydantic object via Claude tool use with redaction & metrics."""
+        start_time = time.perf_counter()
+
+        # R-SEC-2: Redact sensitive information from prompt before transmission
+        clean_prompt = self.redactor.redact_text(prompt)
+        prompt_hash = hashlib.sha256(clean_prompt.encode("utf-8")).hexdigest()[:12]
+
+        tool_name = response_model.__name__
+        tool_definition = {
+            "name": tool_name,
+            "description": f"Return structured {tool_name} matching schema",
+            "input_schema": response_model.model_json_schema(),
+        }
+
+        sys_prompt = system_prompt or "You are an expert QA testing agent. Produce structured output adhering to the schema."
+        sys_prompt = self.redactor.redact_text(sys_prompt)
+
+        response = self.client.messages.create(
+            model=self.model_name,
+            max_tokens=4096,
+            system=sys_prompt,
+            messages=[{"role": "user", "content": clean_prompt}],
+            tools=[tool_definition],
+            tool_choice={"type": "tool", "name": tool_name},
+        )
+
+        elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+
+        parsed_data = None
+        for block in response.content:
+            if getattr(block, "type", None) == "tool_use" and block.name == tool_name:
+                parsed_data = block.input
+                break
+
+        if parsed_data is None:
+            raise ValueError(f"Anthropic model {self.model_name} failed to generate valid {tool_name} tool call")
+
+        instance = response_model.model_validate(parsed_data)
+
+        in_tokens = response.usage.input_tokens
+        out_tokens = response.usage.output_tokens
+        # Estimated cost for Claude 3.5 Sonnet: $3.00/MTok in, $15.00/MTok out
+        cost_usd = (in_tokens * 3.0 + out_tokens * 15.0) / 1_000_000.0
+
+        metrics = LLMUsageMetrics(
+            prompt_hash=prompt_hash,
+            model=self.model_name,
+            prompt_tokens=in_tokens,
+            completion_tokens=out_tokens,
+            latency_ms=elapsed_ms,
+            estimated_cost_usd=round(cost_usd, 6),
+        )
+
+        logger.info(
+            f"Anthropic call completed: model={self.model_name} hash={prompt_hash} "
+            f"tokens={in_tokens}+{out_tokens} latency={elapsed_ms}ms cost=${cost_usd:.5f}"
+        )
+        return instance, metrics
+
+
+def get_llm_provider(
+    provider_type: str = "auto",
+    model_name: str | None = None,
+) -> LLMProvider:
+    """Resolve and return an LLM provider based on configuration or environment (R-BUILD-3)."""
+    if provider_type == "mock":
+        return MockLLMProvider(model_name=model_name or "mock-claude-3-5-sonnet")
+
+    if provider_type == "anthropic":
+        return AnthropicLLMProvider(model_name=model_name or "claude-3-5-sonnet-20241022")
+
+    # Auto: use Anthropic if ANTHROPIC_API_KEY is available, otherwise Mock
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return AnthropicLLMProvider(model_name=model_name or "claude-3-5-sonnet-20241022")
+
+    return MockLLMProvider(model_name=model_name or "mock-claude-3-5-sonnet")

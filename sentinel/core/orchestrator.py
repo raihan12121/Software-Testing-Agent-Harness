@@ -22,6 +22,7 @@ from sentinel.core.logging import logger
 from sentinel.core.schemas import Report, TestCase, Verdict
 from sentinel.executor.executor import Executor
 from sentinel.generator.llm_generator import APITestGenerator
+from sentinel.llm.provider import LLMProvider, get_llm_provider
 from sentinel.memory.store import MemoryStore
 from sentinel.oracle.base import get_oracle
 from sentinel.planner.rule_based import RuleBasedPlanner
@@ -36,12 +37,14 @@ class Orchestrator:
         target_config: TargetConfig,
         run_config: RunConfig,
         memory_store: MemoryStore | None = None,
+        llm_provider: LLMProvider | None = None,
     ) -> None:
         self.target_config = target_config
         self.run_config = run_config
         self.adapter = get_adapter(target_config.target_type)
         self.executor = Executor(target_config, run_config)
         self.memory = memory_store or MemoryStore()
+        self.llm_provider = llm_provider or get_llm_provider()
 
     def plan_and_run(self, report_format: str = "json") -> tuple[Report, int]:
         """Automatically discover target, build test plan, generate test cases, and execute."""
@@ -53,7 +56,7 @@ class Orchestrator:
         plan = planner.build_plan(target_model, risk_context)
         logger.info(f"Planned {len(plan.scenarios)} scenarios.")
 
-        generator = APITestGenerator()
+        generator = APITestGenerator(llm_provider=self.llm_provider)
         test_cases = generator.generate(plan, target_model)
         logger.info(f"Generated {len(test_cases)} concrete test cases.")
 
@@ -95,7 +98,11 @@ class Orchestrator:
             has_critical_failure = False
 
             for tc, obs, retries in executed_results:
-                oracle = get_oracle(tc.expected.oracle)
+                if tc.expected.oracle == "llm_judge":
+                    from sentinel.oracle.llm_judge import LLMJudgeOracle
+                    oracle = LLMJudgeOracle(llm_provider=self.llm_provider)
+                else:
+                    oracle = get_oracle(tc.expected.oracle)
                 verdict = oracle.evaluate(tc, obs)
                 verdict.retries = retries
 

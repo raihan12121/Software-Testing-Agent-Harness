@@ -1,5 +1,15 @@
-"""LLM integration package."""
+from sentinel.llm.provider import (
+    AnthropicLLMProvider,
+    LLMProvider,
+    LLMUsageMetrics,
+    MockLLMProvider,
+    get_llm_provider,
+)
 
-from sentinel.llm.provider import LLMProvider, LLMUsageMetrics, MockLLMProvider
-
-__all__ = ["LLMProvider", "MockLLMProvider", "LLMUsageMetrics"]
+__all__ = [
+    "LLMProvider",
+    "MockLLMProvider",
+    "AnthropicLLMProvider",
+    "LLMUsageMetrics",
+    "get_llm_provider",
+]

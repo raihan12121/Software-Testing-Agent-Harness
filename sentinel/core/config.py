@@ -95,6 +95,7 @@ class SentinelConfig(BaseModel):
         prod_confirmed: bool = False,
         parallelism: int | None = None,
         timeout: float | None = None,
+        output_dir: Path | str | None = None,
     ) -> RunConfig:
         """Create a validated RunConfig for a specific environment."""
         env_conf = self.environments.get(env)
@@ -112,6 +113,8 @@ class SentinelConfig(BaseModel):
                     "Production mutations require environment_ack: 'I understand this targets production' (R-SAFE-2)"
                 )
 
+        resolved_output_dir = Path(output_dir) if output_dir else Path(self.defaults.get("output_dir", "reports"))
+
         return RunConfig(
             run_id=run_id,
             project_id=self.project_id,
@@ -120,4 +123,5 @@ class SentinelConfig(BaseModel):
             prod_confirmed=prod_confirmed,
             parallelism=parallelism or self.defaults.get("parallelism", 1),
             timeout_seconds=timeout or self.defaults.get("timeout_seconds", 30.0),
+            output_dir=resolved_output_dir,
         )
