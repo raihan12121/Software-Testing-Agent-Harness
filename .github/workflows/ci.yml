@@ -26,7 +26,7 @@ jobs:
           version: "latest"
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --all-extras
 
       - name: Code Quality & Linting (Ruff)
         run: uv run ruff check sentinel tests
