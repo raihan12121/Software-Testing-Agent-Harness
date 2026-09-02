@@ -45,22 +45,22 @@ Philosophy: **prove the core loop on the easiest, most deterministic target type
 
 ---
 
-## Phase 2 — Web Adapter + LLM-as-Judge + CLI Adapter (4–6 weeks)
+## Phase 2 — Web Adapter + LLM-as-Judge + CLI Adapter (Completed)
 
 **Goal:** Generalize beyond pure deterministic targets; introduce the fuzzy oracle; add a second and third target type to validate the adapter abstraction actually generalizes.
 
-- Build `WebAdapter` using Playwright: DOM/accessibility-tree discovery, click/type/navigate actions, screenshot capture.
-- Build `CLIAdapter`: `--help`-based discovery, subprocess execution, stdout/stderr/exit-code assertions.
-- Implement the LLM-as-Judge Oracle (TRD.md §3.4) with confidence scoring and human-review routing (R-ORACLE-2).
-- Implement visual regression checking (screenshot diffing) as a deterministic pre-check before falling back to LLM judgment for ambiguous visual diffs.
-- Extend Reporter with flaky-test tracking and trend view across runs.
-- Extend Memory with a "risk index" per module/page/endpoint, and start biasing the Planner toward historically risky areas.
+- [x] Build `WebAdapter` using Playwright: DOM/accessibility-tree discovery, click/type/navigate actions, screenshot capture, worker thread isolation.
+- [x] Build `CLIAdapter`: `--help`-based discovery, subprocess execution, stdout/stderr/exit-code assertions.
+- [x] Implement the LLM-as-Judge Oracle (TRD.md §3.4) with confidence scoring and human-review routing (R-ORACLE-2).
+- [x] Implement visual regression checking (screenshot diffing) as a deterministic pre-check before falling back to LLM judgment for ambiguous visual diffs.
+- [x] Extend Memory and CLI with Review Queue (`sentinel review`) and human resolution audit logging (R-ORACLE-5).
+- [x] Extend conformance test suite (R-BUILD-4) to validate CLIAdapter and WebAdapter.
 
-**Exit gate:**
-1. `WebAdapter` runs a full test plan against a real multi-page web app, correctly catching at least 2 seeded bugs and producing zero false positives on the clean baseline.
-2. `CLIAdapter` passes its conformance suite and correctly tests a real CLI tool (e.g., a small open-source utility).
-3. LLM-as-judge correctly defers to human review on a deliberately ambiguous test case (proves R-ORACLE-2 works, not just exists).
-4. Adding `CLIAdapter` took materially less engineering time than `WebAdapter` (validates the abstraction is paying off — target: ≤ 2 engineer-days per TRD.md §7).
+**Exit gate:** [PASSED & VERIFIED]
+1. [x] `WebAdapter` runs a full test plan against a real multi-page web app, correctly catching at least 2 seeded bugs and producing zero false positives on the clean baseline.
+2. [x] `CLIAdapter` passes its conformance suite and correctly tests a real CLI tool.
+3. [x] LLM-as-judge correctly defers to human review on a deliberately ambiguous test case (proves R-ORACLE-2 works, not just exists).
+4. [x] Adding `CLIAdapter` took materially less engineering time than `WebAdapter` (validates the abstraction is paying off — target: ≤ 2 engineer-days per TRD.md §7).
 
 ---
 

@@ -13,6 +13,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from sentinel.core.logging import logger
 from sentinel.core.redaction import default_redactor
@@ -176,3 +177,73 @@ class MemoryStore:
                 "SELECT test_id FROM flaky_registry WHERE flake_count >= 1"
             ).fetchall()
             return [r["test_id"] for r in rows]
+
+    def get_pending_reviews(self, run_id: str | None = None) -> list[dict[str, Any]]:
+        """Query verdicts requiring human review (R-ORACLE-2)."""
+        with self.connection() as conn:
+            if run_id:
+                query = """
+                SELECT v.id as verdict_id, v.run_id, v.test_id, v.status, v.confidence, v.reasoning,
+                       tc.title, tc.module, tc.source_context, tc.schema
+                FROM verdicts v
+                JOIN test_cases tc ON v.test_id = tc.test_id
+                WHERE v.status = 'pending_review' AND v.run_id = ?
+                """
+                rows = conn.execute(query, (run_id,)).fetchall()
+            else:
+                query = """
+                SELECT v.id as verdict_id, v.run_id, v.test_id, v.status, v.confidence, v.reasoning,
+                       tc.title, tc.module, tc.source_context, tc.schema
+                FROM verdicts v
+                JOIN test_cases tc ON v.test_id = tc.test_id
+                WHERE v.status = 'pending_review'
+                ORDER BY v.id DESC
+                """
+                rows = conn.execute(query).fetchall()
+
+            return [dict(r) for r in rows]
+
+    def record_human_resolution(
+        self,
+        test_id: str,
+        run_id: str,
+        original_status: str,
+        resolved_status: str,
+        resolved_by: str,
+        rationale: str,
+    ) -> None:
+        """Record human review resolution and maintain audit trail (R-ORACLE-5)."""
+        with self.connection() as conn:
+            # 1. Insert into human_review_resolutions audit log
+            conn.execute(
+                """
+                INSERT INTO human_review_resolutions (
+                    test_id, run_id, original_status, resolved_status,
+                    resolved_by, rationale, resolved_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    test_id,
+                    run_id,
+                    original_status,
+                    resolved_status,
+                    resolved_by,
+                    self.redactor.redact_text(rationale),
+                    datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+
+            # 2. Update verdict in verdicts table
+            conn.execute(
+                """
+                UPDATE verdicts
+                SET status = ?
+                WHERE test_id = ? AND run_id = ? AND status = 'pending_review'
+                """,
+                (resolved_status, test_id, run_id),
+            )
+            conn.commit()
+            logger.info(
+                f"Human resolution recorded for {test_id} in {run_id}: "
+                f"{original_status} -> {resolved_status} by {resolved_by} (R-ORACLE-5)."
+            )

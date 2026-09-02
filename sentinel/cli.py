@@ -185,6 +185,57 @@ def cmd_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_review(args: argparse.Namespace) -> int:
+    """Inspect and resolve pending_review verdicts (R-ORACLE-2, R-ORACLE-5)."""
+    from sentinel.memory.store import MemoryStore
+
+    store = MemoryStore()
+    pending = store.get_pending_reviews(run_id=args.run_id)
+
+    if not pending:
+        console.print("[green]No verdicts pending human review.[/green]")
+        return 0
+
+    if args.resolve_id:
+        target_item = next((p for p in pending if p["test_id"] == args.resolve_id), None)
+        if not target_item:
+            console.print(f"[red]Pending review for test_id '{args.resolve_id}' not found.[/red]")
+            return 1
+        new_status = "pass" if args.as_pass else ("fail" if args.as_fail else "pass")
+        rationale = args.rationale or "Manual human resolution"
+        store.record_human_resolution(
+            test_id=args.resolve_id,
+            run_id=target_item["run_id"],
+            original_status="pending_review",
+            resolved_status=new_status,
+            resolved_by=args.reviewer or "human_tester",
+            rationale=rationale,
+        )
+        console.print(f"[green]Successfully resolved {args.resolve_id} as {new_status}.[/green]")
+        return 0
+
+    table = Table(title=f"Verdicts Pending Human Review ({len(pending)} items)")
+    table.add_column("Test ID", justify="center", style="cyan")
+    table.add_column("Run ID", justify="center")
+    table.add_column("Title", justify="left")
+    table.add_column("Confidence", justify="center", style="yellow")
+    table.add_column("Judge Reasoning", justify="left")
+
+    for p in pending:
+        conf_str = f"{p['confidence']:.2f}" if p.get("confidence") is not None else "N/A"
+        table.add_row(
+            p["test_id"],
+            p["run_id"],
+            p["title"],
+            conf_str,
+            (p.get("reasoning") or "")[:80],
+        )
+
+    console.print(table)
+    console.print("[dim]Use --resolve-id <test_id> --as-pass/--as-fail --rationale <text> to resolve.[/dim]")
+    return 0
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     """Scaffold a starter sentinel.config.yaml."""
     config_path = Path("sentinel.config.yaml")
@@ -230,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--config", default="sentinel.config.yaml", help="Path to configuration file")
     run_parser.add_argument("--env", required=True, choices=["local", "staging", "sandbox", "production"], help="Target environment (R-EXEC-4)")
     run_parser.add_argument("--target", default=None, help="Target spec, URL, or path")
-    run_parser.add_argument("--target-type", default="stub", help="Target adapter type (stub, api, etc.)")
+    run_parser.add_argument("--target-type", default="stub", help="Target adapter type (stub, api, cli, web)")
     run_parser.add_argument("--test-file", default=None, help="Path to test cases YAML/JSON file")
     run_parser.add_argument("--run-id", default=None, help="Custom run identifier")
     run_parser.add_argument("--project", default="default", help="Project identifier")
@@ -247,6 +298,15 @@ def main(argv: list[str] | None = None) -> int:
     plan_parser.add_argument("--target", default=None, help="Target spec, URL, or path")
     plan_parser.add_argument("--target-type", default="api", help="Target adapter type")
 
+    # Review command
+    review_parser = subparsers.add_parser("review", help="Review and resolve pending verdicts (FR-16, R-ORACLE-2)")
+    review_parser.add_argument("--run-id", default=None, help="Filter by run ID")
+    review_parser.add_argument("--resolve-id", default=None, help="Test ID to resolve")
+    review_parser.add_argument("--as-pass", action="store_true", help="Resolve verdict as PASS")
+    review_parser.add_argument("--as-fail", action="store_true", help="Resolve verdict as FAIL")
+    review_parser.add_argument("--reviewer", default="human_tester", help="Reviewer name")
+    review_parser.add_argument("--rationale", default=None, help="Audit rationale for override")
+
     # Init command
     init_parser = subparsers.add_parser("init", help="Initialize sentinel.config.yaml")
     init_parser.add_argument("--force", action="store_true", help="Overwrite existing configuration file")
@@ -257,6 +317,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_run(args)
     if args.subcommand == "plan":
         return cmd_plan(args)
+    if args.subcommand == "review":
+        return cmd_review(args)
     if args.subcommand == "init":
         return cmd_init(args)
 

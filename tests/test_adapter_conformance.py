@@ -97,3 +97,17 @@ class TestAPIAdapterConformance(ConformanceSuiteBase):
             timeout_seconds=5.0,
             metadata={"base_url": "http://127.0.0.1:8765"},
         )
+
+
+class TestCLIAdapterConformance(ConformanceSuiteBase):
+    """Validate CLIAdapter against conformance suite (R-BUILD-4)."""
+
+    def get_adapter(self) -> TargetAdapter:
+        from sentinel.adapters.cli_adapter import CLIAdapter
+        return CLIAdapter()
+
+    def get_valid_config(self) -> TargetConfig:
+        return TargetConfig(target_type="cli", name="python")
+
+    def get_valid_step(self) -> TestStep:
+        return TestStep(action="cli_exec", path="python -c \"print('conformance_ok')\"")
