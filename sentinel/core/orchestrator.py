@@ -21,18 +21,43 @@ from sentinel.core.config import RunConfig, TargetConfig
 from sentinel.core.logging import logger
 from sentinel.core.schemas import Report, TestCase, Verdict
 from sentinel.executor.executor import Executor
+from sentinel.generator.llm_generator import APITestGenerator
+from sentinel.memory.store import MemoryStore
 from sentinel.oracle.base import get_oracle
+from sentinel.planner.rule_based import RuleBasedPlanner
 from sentinel.reporter.base import get_reporter
 
 
 class Orchestrator:
-    """Coordinates discovery, execution, oracle evaluation, and reporting."""
+    """Coordinates discovery, execution, oracle evaluation, reporting, and memory persistence."""
 
-    def __init__(self, target_config: TargetConfig, run_config: RunConfig) -> None:
+    def __init__(
+        self,
+        target_config: TargetConfig,
+        run_config: RunConfig,
+        memory_store: MemoryStore | None = None,
+    ) -> None:
         self.target_config = target_config
         self.run_config = run_config
         self.adapter = get_adapter(target_config.target_type)
         self.executor = Executor(target_config, run_config)
+        self.memory = memory_store or MemoryStore()
+
+    def plan_and_run(self, report_format: str = "json") -> tuple[Report, int]:
+        """Automatically discover target, build test plan, generate test cases, and execute."""
+        target_model = self.adapter.discover(self.target_config)
+        logger.info(f"Introspected target '{target_model.name}' with {len(target_model.endpoints)} endpoints.")
+
+        risk_context = self.memory.get_risk_context(self.run_config.project_id)
+        planner = RuleBasedPlanner()
+        plan = planner.build_plan(target_model, risk_context)
+        logger.info(f"Planned {len(plan.scenarios)} scenarios.")
+
+        generator = APITestGenerator()
+        test_cases = generator.generate(plan, target_model)
+        logger.info(f"Generated {len(test_cases)} concrete test cases.")
+
+        return self.run_tests(test_cases, report_format=report_format)
 
     def run_tests(self, test_cases: list[TestCase], report_format: str = "json") -> tuple[Report, int]:
         """Execute a suite of test cases end-to-end.
@@ -133,7 +158,13 @@ class Orchestrator:
             report_path = reporter.generate_report(report, self.run_config.output_dir)
             logger.info(f"Report generated at: {report_path}")
 
-            # 6. Determine CI exit code (TRD.md §2.5, rules.md R-REPORT-1)
+            # 6. Persist to Memory Store (TRD.md §2.4, architecture.md §3.1)
+            try:
+                self.memory.persist_run(report, test_cases)
+            except Exception as mem_err:
+                logger.warning(f"Failed to persist run to memory store: {mem_err}")
+
+            # 7. Determine CI exit code (TRD.md §2.5, rules.md R-REPORT-1)
             total = len(test_cases)
             pass_rate = (pass_count + flaky_count) / total if total > 0 else 1.0
 

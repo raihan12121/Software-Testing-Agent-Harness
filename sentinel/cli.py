@@ -81,11 +81,17 @@ def cmd_run(args: argparse.Namespace) -> int:
             output_dir=Path(args.output_dir or "reports"),
         )
 
-    # Load test cases
+    # Load test cases or run planner
+    orchestrator = Orchestrator(target_config, run_config)
+
     if args.test_file:
         test_cases = load_test_cases_from_file(Path(args.test_file))
+        report, exit_code = orchestrator.run_tests(test_cases, report_format=args.format)
+    elif target_config.spec_path or args.target:
+        console.print(f"[cyan]Auto-planning test suite from target '{target_config.name}'...[/cyan]")
+        report, exit_code = orchestrator.plan_and_run(report_format=args.format)
     else:
-        console.print("[yellow]No --test-file provided. Generating sample stub test case.[/yellow]")
+        console.print("[yellow]No --test-file or --target provided. Generating sample stub test case.[/yellow]")
         from sentinel.core.schemas import ExpectedResult, TestStep
 
         test_cases = [
@@ -110,9 +116,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 generated_by="human",
             )
         ]
-
-    orchestrator = Orchestrator(target_config, run_config)
-    report, exit_code = orchestrator.run_tests(test_cases, report_format=args.format)
+        report, exit_code = orchestrator.run_tests(test_cases, report_format=args.format)
 
     # Display results summary table
     table = Table(title=f"Sentinel Run Summary: {report.run_id}")
@@ -125,7 +129,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     table.add_column("Duration (ms)", justify="right")
 
     table.add_row(
-        str(len(test_cases)),
+        str(len(report.verdicts)),
         str(report.pass_count),
         str(report.fail_count),
         str(report.flaky_count),
@@ -138,6 +142,49 @@ def cmd_run(args: argparse.Namespace) -> int:
     return exit_code
 
 
+def cmd_plan(args: argparse.Namespace) -> int:
+    """Generate and display a prioritized test plan for human review (FR-6)."""
+    config_file = Path(args.config)
+    if config_file.exists():
+        sentinel_conf = SentinelConfig.load(config_file)
+        target_config = sentinel_conf.target
+    else:
+        target_type = args.target_type or "api"
+        target_config = TargetConfig(
+            target_type=target_type,
+            name=f"{target_type}-target",
+            spec_path=args.target,
+        )
+
+    from sentinel.adapters.base import get_adapter
+    from sentinel.planner.rule_based import RuleBasedPlanner
+
+    adapter = get_adapter(target_config.target_type)
+    target_model = adapter.discover(target_config)
+    planner = RuleBasedPlanner()
+    plan = planner.build_plan(target_model)
+
+    table = Table(title=f"Test Plan for '{target_model.name}' ({len(plan.scenarios)} scenarios)")
+    table.add_column("ID", justify="center", style="cyan")
+    table.add_column("Priority", justify="center")
+    table.add_column("Component", justify="left")
+    table.add_column("Title", justify="left")
+    table.add_column("Tags", justify="left", style="dim")
+
+    for s in plan.scenarios:
+        pri_style = "bold red" if s.priority == "critical" else ("red" if s.priority == "high" else "yellow")
+        table.add_row(
+            s.id,
+            f"[{pri_style}]{s.priority}[/{pri_style}]",
+            s.target_component,
+            s.title,
+            ", ".join(s.tags),
+        )
+
+    console.print(table)
+    return 0
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     """Scaffold a starter sentinel.config.yaml."""
     config_path = Path("sentinel.config.yaml")
@@ -148,8 +195,9 @@ def cmd_init(args: argparse.Namespace) -> int:
     starter_config = {
         "project_id": "my-project",
         "target": {
-            "target_type": "stub",
-            "name": "sample-target",
+            "target_type": "api",
+            "name": "sample-api",
+            "spec_path": "openapi.yaml",
             "allowed_hosts": ["localhost", "127.0.0.1"],
         },
         "environments": {
@@ -186,12 +234,18 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--test-file", default=None, help="Path to test cases YAML/JSON file")
     run_parser.add_argument("--run-id", default=None, help="Custom run identifier")
     run_parser.add_argument("--project", default="default", help="Project identifier")
-    run_parser.add_argument("--format", default="json", choices=["json"], help="Report output format")
+    run_parser.add_argument("--format", default="json", choices=["json", "html"], help="Report output format")
     run_parser.add_argument("--output-dir", default="reports", help="Directory for reports and artifacts")
     run_parser.add_argument("--parallelism", type=int, default=1, help="Worker pool concurrency")
     run_parser.add_argument("--timeout", type=float, default=30.0, help="Execution timeout in seconds")
     run_parser.add_argument("--allow-mutations", action="store_true", help="Allow mutating actions (R-SAFE-1)")
     run_parser.add_argument("--yes-i-know-prod", action="store_true", help="Explicit production confirmation (R-SAFE-2)")
+
+    # Plan command
+    plan_parser = subparsers.add_parser("plan", help="Generate and display test plan scenarios (FR-6)")
+    plan_parser.add_argument("--config", default="sentinel.config.yaml", help="Path to configuration file")
+    plan_parser.add_argument("--target", default=None, help="Target spec, URL, or path")
+    plan_parser.add_argument("--target-type", default="api", help="Target adapter type")
 
     # Init command
     init_parser = subparsers.add_parser("init", help="Initialize sentinel.config.yaml")
@@ -201,6 +255,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.subcommand == "run":
         return cmd_run(args)
+    if args.subcommand == "plan":
+        return cmd_plan(args)
     if args.subcommand == "init":
         return cmd_init(args)
 

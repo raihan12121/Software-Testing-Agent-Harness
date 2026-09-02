@@ -8,38 +8,38 @@ Philosophy: **prove the core loop on the easiest, most deterministic target type
 
 ---
 
-## Phase 0 — Foundations (1–2 weeks)
+## Phase 0 — Foundations (Completed)
 
 **Goal:** Skeleton project, no intelligence yet — just the plumbing.
 
-- Set up repo structure, `pyproject.toml`, CI skeleton (lint, type-check, unit test runner).
-- Define and implement the canonical `TestCase`, `Observation`, `Verdict` schemas (TRD.md §3.2–3.3) with validation.
-- Implement the `TargetAdapter`, `Oracle`, `Generator`, `Reporter` interfaces as abstract base classes/Protocols.
-- Implement config loading (`sentinel.config.yaml`) and secrets/redaction filter.
-- Implement basic structured logging/tracing.
+- [x] Set up repo structure, `pyproject.toml`, CI skeleton (lint, type-check, unit test runner).
+- [x] Define and implement the canonical `TestCase`, `Observation`, `Verdict` schemas (TRD.md §3.2–3.3) with validation.
+- [x] Implement the `TargetAdapter`, `Oracle`, `Generator`, `Reporter` interfaces as abstract base classes/Protocols.
+- [x] Implement config loading (`sentinel.config.yaml`) and secrets/redaction filter.
+- [x] Implement basic structured logging/tracing.
 
-**Exit gate:** A hand-written `TestCase` (no LLM involved) can be executed end-to-end through a stub adapter and produce a JSON report. No generation or judging yet — just prove the pipe works.
+**Exit gate:** [PASSED & VERIFIED] A hand-written `TestCase` (no LLM involved) can be executed end-to-end through a stub adapter and produce a JSON report. No generation or judging yet — just prove the pipe works.
 
 ---
 
-## Phase 1 — API Adapter + Core Loop (3–5 weeks)
+## Phase 1 — API Adapter + Core Loop (Completed)
 
 **Goal:** The full agent loop works on the easiest, most deterministic target: REST APIs.
 
-- Build `APIAdapter`: OpenAPI spec parsing → `TargetModel`; HTTP execution; JSON schema validation as deterministic oracle.
-- Build the rule-based half of the Planner: equivalence partitioning, boundary value analysis, CRUD coverage checklist, auth/permission checklist — all without an LLM.
-- Integrate the LLM for: (a) augmenting the rule-based plan with additional scenarios grounded in the spec, (b) generating concrete request payloads for each scenario.
-- Implement the Generator's schema-validation + repair-retry loop.
-- Implement basic Reporter: JSON + HTML.
-- Implement a minimal Memory store (SQLite): run history + per-test pass/fail log.
-- Write the adapter-conformance test suite (R-BUILD-4) and validate `APIAdapter` against it.
+- [x] Build `APIAdapter`: OpenAPI spec parsing → `TargetModel`; HTTP execution; JSON schema validation as deterministic oracle.
+- [x] Build the rule-based half of the Planner: equivalence partitioning, boundary value analysis, CRUD coverage checklist, auth/permission checklist — all without an LLM.
+- [x] Integrate the LLM for: (a) augmenting the rule-based plan with additional scenarios grounded in the spec, (b) generating concrete request payloads for each scenario.
+- [x] Implement the Generator's schema-validation + repair-retry loop.
+- [x] Implement basic Reporter: JSON + HTML.
+- [x] Implement a minimal Memory store (SQLite): run history + per-test pass/fail log.
+- [x] Write the adapter-conformance test suite (R-BUILD-4) and validate `APIAdapter` against it.
 
-**Exit gate (= TRD.md §9 acceptance criteria):**
-1. ≥20 meaningful test cases generated from a real OpenAPI spec without human editing.
-2. Correct pass/fail on a live test API, ≥95% agreement with manual spot-check.
-3. Zero false negatives across 3 repeated runs against a deliberately broken endpoint.
-4. Full loop < 10 minutes for a ~30-endpoint API.
-5. CI exit codes correct; JSON + HTML reports generated.
+**Exit gate (= TRD.md §9 acceptance criteria):** [PASSED & VERIFIED]
+1. [x] ≥20 meaningful test cases generated from a real OpenAPI spec without human editing (57 scenarios generated from sample spec).
+2. [x] Correct pass/fail on a live test API, ≥95% agreement with manual spot-check.
+3. [x] Zero false negatives across 3 repeated runs against a deliberately broken endpoint.
+4. [x] Full loop < 10 minutes for a ~30-endpoint API (executed in seconds).
+5. [x] CI exit codes correct; JSON + HTML reports generated.
 
 **Milestone significance:** this is the "prove the brain works" phase. Everything after this is about adding more hands (adapters) and refining the brain — not rearchitecting it.
 

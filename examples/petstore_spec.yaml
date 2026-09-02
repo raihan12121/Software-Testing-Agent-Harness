@@ -1,0 +1,248 @@
+openapi: 3.0.3
+info:
+  title: Sample Store & User API
+  version: 1.0.0
+  description: Multi-endpoint REST API for Sentinel Phase 1 testing
+servers:
+  - url: http://127.0.0.1:8765
+    description: Local test server
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, uptime]
+                properties:
+                  status:
+                    type: string
+                  uptime:
+                    type: integer
+
+  /auth/login:
+    post:
+      summary: User login
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token]
+                properties:
+                  token:
+                    type: string
+        "401":
+          description: Invalid credentials
+
+  /users:
+    get:
+      summary: List all users
+      operationId: listUsers
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    name:
+                      type: string
+    post:
+      summary: Create a user
+      operationId: createUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, age]
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                age:
+                  type: integer
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+        "400":
+          description: Invalid input
+        "401":
+          description: Unauthorized
+
+  /users/{id}:
+    get:
+      summary: Get user by ID
+      operationId: getUserById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+        "404":
+          description: User not found
+    put:
+      summary: Update user
+      operationId: updateUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        "200":
+          description: User updated
+        "404":
+          description: User not found
+    delete:
+      summary: Delete user
+      operationId: deleteUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: User deleted
+        "404":
+          description: User not found
+
+  /orders:
+    get:
+      summary: List orders
+      operationId: listOrders
+      responses:
+        "200":
+          description: List of orders
+    post:
+      summary: Create order
+      operationId: createOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, item_count, total_amount]
+              properties:
+                user_id:
+                  type: integer
+                item_count:
+                  type: integer
+                total_amount:
+                  type: number
+      responses:
+        "201":
+          description: Order created
+        "400":
+          description: Bad request
+
+  /orders/{id}:
+    get:
+      summary: Get order details
+      operationId: getOrder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Order details
+        "404":
+          description: Order not found
+    delete:
+      summary: Cancel order
+      operationId: deleteOrder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Order cancelled
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

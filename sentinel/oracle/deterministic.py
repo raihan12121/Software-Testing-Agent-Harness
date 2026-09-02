@@ -54,7 +54,7 @@ class DeterministicOracle(Oracle):
                 duration_ms=observation.duration_ms,
             )
 
-        context = self._build_evaluation_context(observation.raw_result)
+        context = self._build_evaluation_context(observation.raw_result, test_case)
         results: list[AssertionResult] = []
         all_passed = True
 
@@ -80,8 +80,11 @@ class DeterministicOracle(Oracle):
             duration_ms=observation.duration_ms,
         )
 
-    def _build_evaluation_context(self, raw_result: dict[str, Any]) -> dict[str, Any]:
-        """Wrap dicts to allow dot-notation access."""
+    def _build_evaluation_context(
+        self, raw_result: dict[str, Any], test_case: TestCase | None = None
+    ) -> dict[str, Any]:
+        """Wrap dicts to allow dot-notation access and evaluate json schemas."""
+        import jsonschema
 
         class DotDict(dict):
             def __getattr__(self, name: str) -> Any:
@@ -98,6 +101,22 @@ class DeterministicOracle(Oracle):
                 context[k] = DotDict(v)
             else:
                 context[k] = v
+
+        # Check JSON schema validity if schema is provided in step metadata
+        schema_valid = True
+        schema_error = None
+        if test_case and test_case.steps:
+            expected_schema = test_case.steps[0].metadata.get("expected_response_schema")
+            body = raw_result.get("body")
+            if expected_schema and isinstance(body, (dict, list)):
+                try:
+                    jsonschema.validate(instance=body, schema=expected_schema)
+                except Exception as exc:
+                    schema_valid = False
+                    schema_error = str(exc)
+
+        context["schema_valid"] = schema_valid
+        context["schema_error"] = schema_error
         return context
 
     def _evaluate_assertion(self, expr_str: str, context: dict[str, Any]) -> AssertionResult:
