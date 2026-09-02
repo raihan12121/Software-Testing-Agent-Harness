@@ -51,6 +51,15 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     run_id = args.run_id or f"run-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
 
+    if getattr(args, "project_dir", None):
+        from sentinel.scanner import ProjectScanner
+        scanner = ProjectScanner(args.project_dir)
+        targets = scanner.scan()
+        if targets and not args.target:
+            args.target = targets[0].target_path
+            args.target_type = targets[0].target_type
+            console.print(f"[cyan]Auto-detected target from '{args.project_dir}': {targets[0].name}[/cyan]")
+
     if config_file.exists():
         sentinel_conf = SentinelConfig.load(config_file)
         target_config = sentinel_conf.target
@@ -293,6 +302,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser = subparsers.add_parser("run", help="Execute test cases")
     run_parser.add_argument("--config", default="sentinel.config.yaml", help="Path to configuration file")
     run_parser.add_argument("--env", required=True, choices=["local", "staging", "sandbox", "production"], help="Target environment (R-EXEC-4)")
+    run_parser.add_argument("-d", "--project-dir", default=None, help="Project folder to auto-scan for targets")
     run_parser.add_argument("--target", default=None, help="Target spec, URL, or path")
     run_parser.add_argument("--target-type", default="stub", help="Target adapter type (stub, api, cli, web)")
     run_parser.add_argument("--test-file", default=None, help="Path to test cases YAML/JSON file")
@@ -305,6 +315,13 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--allow-mutations", action="store_true", help="Allow mutating actions (R-SAFE-1)")
     run_parser.add_argument("--yes-i-know-prod", action="store_true", help="Explicit production confirmation (R-SAFE-2)")
     run_parser.add_argument("--explore", action="store_true", help="Autonomous exploration mode (R-SAFE-3)")
+
+    # Test / Scan command (interactive project folder selector)
+    test_parser = subparsers.add_parser("test", help="Choose a project folder, auto-detect targets, and test interactively")
+    test_parser.add_argument("path", nargs="?", default=None, help="Project directory to scan and test")
+
+    scan_parser = subparsers.add_parser("scan", help="Scan a project folder and test interactively")
+    scan_parser.add_argument("path", nargs="?", default=None, help="Project directory to scan and test")
 
     # Plan command
     plan_parser = subparsers.add_parser("plan", help="Generate and display test plan scenarios (FR-6)")
@@ -332,6 +349,9 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
 
+    if args.subcommand in ("test", "scan"):
+        from sentinel.scanner import interactive_scan_and_test
+        return interactive_scan_and_test(console, args.path)
     if args.subcommand == "run":
         return cmd_run(args)
     if args.subcommand == "plan":
@@ -343,7 +363,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.subcommand == "init":
         return cmd_init(args)
 
-    parser.print_help()
+    # If no subcommand provided, launch interactive tester if terminal is interactive
+    if not args.subcommand:
+        if sys.stdin.isatty():
+            from sentinel.scanner import interactive_scan_and_test
+            return interactive_scan_and_test(console)
+        parser.print_help()
+        return 0
     return 0
 
 
