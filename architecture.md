@@ -96,7 +96,21 @@ This loop is intentionally **linear and inspectable** in v1 (not a free-roaming 
 - Captures `Observation` + `Artifact`s for every execution.
 
 ### 3.5 Adapters
-Each adapter implements the `TargetAdapter` interface (TRD.md §3.1). Adapters are the **only** components that know how to talk to a specific technology (Playwright, httpx, subprocess, Appium, etc.). This is the primary extension point for supporting new software types.
+Each adapter implements the `TargetAdapter` interface (TRD.md §3.1). Adapters are the **only** components that know how to talk to a specific technology. Implemented adapters:
+- **`APIAdapter`**: OpenAPI 3.0/3.1 spec parser, HTTP request execution with host allowlisting (R-SAFE-5).
+- **`WebAdapter`**: Playwright browser automation with worker thread pool isolation and visual diffing.
+- **`CLIAdapter`**: Isolated subprocess execution, argument parsing, stdout/stderr/exit code assertions.
+- **`DatabaseAdapter`**: Schema introspection, SQL query execution, and transactional rollback isolation via SAVEPOINT (R-EXEC-1).
+- **`MobileAdapter`**: Appium / WebDriver protocol for iOS and Android with session reset isolation.
+- **`DesktopAdapter`**: Desktop window and control inspection via accessibility automation.
+- **`PerformanceAdapter`**: Latency benchmarking (p50, p90, p95, p99), throughput (RPS), and error rate metrics under load.
+- **`IoTAdapter`**: MQTT message bus and Serial telemetry testing with state reset.
+- **`StubAdapter`**: In-memory test double for zero-dependency conformance testing.
+
+Generators:
+- **`APITestGenerator`**: LLM structured generation with repair loop (R-GEN-2).
+- **`MultiAgentGenerator`**: Collaborative multi-agent generation (FunctionalAgent + AdversarialAgent) with deduplication (R-GEN-4).
+- **`SecurityTestGenerator`**: Grounded non-destructive vulnerability probes adhering to R-SAFE guardrails.
 
 ### 3.6 Oracle
 Two-tier:

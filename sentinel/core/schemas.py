@@ -56,7 +56,9 @@ class TestCase(BaseModel):
     """Canonical test case representation."""
     __test__ = False
     id: str = Field(..., description="Unique test case identifier (e.g. TC-0001)")
-    target_type: Literal["api", "web", "cli", "db", "database", "mobile", "desktop", "stub"] = Field(
+    target_type: Literal[
+        "api", "web", "cli", "db", "database", "mobile", "desktop", "performance", "iot", "stub"
+    ] = Field(
         ...,
         description="Target type this test executes against"
     )

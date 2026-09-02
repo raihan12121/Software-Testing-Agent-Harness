@@ -100,15 +100,21 @@ Philosophy: **prove the core loop on the easiest, most deterministic target type
 
 ---
 
-## Phase 5 — Stretch: Performance, Security, Embedded/IoT (open-ended)
+## Phase 5 — Stretch: Performance, Security, Embedded/IoT (Completed)
 
 **Goal:** Round out non-functional and specialized testing types explicitly deferred in the PRD's non-goals.
 
-- Performance/load testing adapter (integrate or build on existing load-testing tools, orchestrated by Sentinel's planner for risk-based load scenario selection).
-- Security/pentest-oriented test generation (grounded, scoped, with strict R-SAFE guardrails — never freeform "hack the target").
-- Embedded/IoT hardware-in-the-loop adapter (serial/MQTT protocols) — only after core platform is stable and there's concrete demand.
+- [x] Build `PerformanceAdapter`: latency benchmarking (p50, p90, p95, p99), throughput (RPS), and error rate metrics under load with performance artifact generation.
+- [x] Build `SecurityTestGenerator`: grounded, scoped security testing with strict R-SAFE guardrails (injection, BOLA/IDOR, info leak, non-destructive probing).
+- [x] Build `IoTAdapter`: embedded/IoT hardware-in-the-loop and message bus testing (MQTT topics, Serial telemetry) with clean session reset (R-EXEC-1).
+- [x] Extend conformance suite to validate Performance and IoT adapters (R-BUILD-4).
+- [x] Update documentation across architecture.md to prevent doc drift (R-BUILD-5).
 
-**Exit gate:** defined per sub-project when Phase 5 is actually scoped; not blocking for the core product.
+**Exit gate:** [PASSED & VERIFIED]
+1. [x] PerformanceAdapter executes load benchmarks and emits latency percentile distributions and throughput metrics.
+2. [x] SecurityTestGenerator synthesizes grounded, non-destructive security checks enforcing R-SAFE guardrails.
+3. [x] IoTAdapter publishes and subscribes to message topics and serial interfaces with clean state reset.
+4. [x] All adapters pass the standard adapter conformance test suite (R-BUILD-4).
 
 ---
 

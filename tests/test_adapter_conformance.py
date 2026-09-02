@@ -153,3 +153,31 @@ class TestDesktopAdapterConformance(ConformanceSuiteBase):
 
     def get_valid_step(self) -> TestStep:
         return TestStep(action="click_element", path="btn_file_new")
+
+
+class TestPerformanceAdapterConformance(ConformanceSuiteBase):
+    """Validate PerformanceAdapter against conformance suite (R-BUILD-4)."""
+
+    def get_adapter(self) -> TargetAdapter:
+        from sentinel.adapters.perf_adapter import PerformanceAdapter
+        return PerformanceAdapter()
+
+    def get_valid_config(self) -> TargetConfig:
+        return TargetConfig(target_type="performance", name="TestPerfApp")
+
+    def get_valid_step(self) -> TestStep:
+        return TestStep(action="load_test", path="/health", params={"iterations": 5})
+
+
+class TestIoTAdapterConformance(ConformanceSuiteBase):
+    """Validate IoTAdapter against conformance suite (R-BUILD-4)."""
+
+    def get_adapter(self) -> TargetAdapter:
+        from sentinel.adapters.iot_adapter import IoTAdapter
+        return IoTAdapter()
+
+    def get_valid_config(self) -> TargetConfig:
+        return TargetConfig(target_type="iot", name="TestIoTApp")
+
+    def get_valid_step(self) -> TestStep:
+        return TestStep(action="publish", path="sensors/temp", body={"temp": 21.0})
