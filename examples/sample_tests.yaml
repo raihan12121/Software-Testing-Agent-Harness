@@ -1,0 +1,48 @@
+- id: TC-0001
+  target_type: stub
+  title: "Verify health check endpoint returns 200 OK"
+  priority: high
+  tags: [smoke, health]
+  preconditions:
+    - "stub service is reachable"
+  steps:
+    - action: http_request
+      method: GET
+      path: /health
+      headers:
+        Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.t-IDcSemACt8x4iTMCda8Yhe3iZaWbvV5XKSTbuAn0M"
+      metadata:
+        status_code: 200
+        response_body:
+          status: "healthy"
+          uptime: 3600
+  expected:
+    oracle: deterministic
+    assertions:
+      - "status_code == 200"
+      - "body.status == 'healthy'"
+      - "body.uptime > 0"
+  mutating: false
+  generated_by: human
+  source_context: "specs/health.yaml#/paths/~1health/get"
+
+- id: TC-0002
+  target_type: stub
+  title: "Verify not found handler returns 404"
+  priority: medium
+  tags: [negative]
+  steps:
+    - action: http_request
+      method: GET
+      path: /api/v1/nonexistent
+      metadata:
+        status_code: 404
+        response_body:
+          error: "Not Found"
+  expected:
+    oracle: deterministic
+    assertions:
+      - "status_code == 404"
+      - "body.error == 'Not Found'"
+  mutating: false
+  generated_by: human

@@ -1,0 +1,20 @@
+project_id: sentinel-pilot
+target:
+  target_type: stub
+  name: pilot-stub-target
+  allowed_hosts:
+    - localhost
+    - 127.0.0.1
+environments:
+  local:
+    env_name: local
+    allow_mutations: true
+  staging:
+    env_name: staging
+    allow_mutations: true
+  production:
+    env_name: production
+    allow_mutations: false
+defaults:
+  parallelism: 2
+  timeout_seconds: 15.0
