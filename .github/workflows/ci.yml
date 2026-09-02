@@ -1,0 +1,45 @@
+name: Sentinel CI & Quality Gate
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Run Sentinel Verification Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Code Quality & Linting (Ruff)
+        run: uv run ruff check sentinel tests
+
+      - name: Run Test Suite & Exit Gates
+        run: uv run pytest --cov=sentinel --cov-report=term-missing
+
+      - name: Execute Sentinel Self-Test
+        run: uv run sentinel run --target "python" --target-type cli --env local --format html
+
+      - name: Upload HTML Test Report Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-html-reports
+          path: reports/

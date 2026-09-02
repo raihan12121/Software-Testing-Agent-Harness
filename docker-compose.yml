@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  sentinel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sentinel-harness:latest
+    container_name: sentinel_dashboard
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - sentinel_data:/app/data
+      - ./reports:/app/reports
+      - ./artifacts:/app/artifacts
+
+volumes:
+  sentinel_data:
+    driver: local
