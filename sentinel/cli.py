@@ -84,7 +84,20 @@ def cmd_run(args: argparse.Namespace) -> int:
     # Load test cases or run planner
     orchestrator = Orchestrator(target_config, run_config)
 
-    if args.test_file:
+    if getattr(args, "explore", False):
+        if env_name == "production":
+            console.print("[bold red]SECURITY VIOLATION: Explore mode is strictly prohibited against production (R-SAFE-3). Aborting.[/bold red]")
+            return 2
+        from sentinel.adapters import get_adapter
+        from sentinel.explorer import AutonomousExplorer
+
+        explorer = AutonomousExplorer(target_config, run_config)
+        adapter_cls = get_adapter(target_config.target_type)
+        adapter = adapter_cls(target_config)
+        console.print(f"[cyan]Running Autonomous Explore Mode on {target_config.target_type}...[/cyan]")
+        test_cases = explorer.explore(adapter)
+        report, exit_code = orchestrator.run_tests(test_cases, report_format=args.format)
+    elif args.test_file:
         test_cases = load_test_cases_from_file(Path(args.test_file))
         report, exit_code = orchestrator.run_tests(test_cases, report_format=args.format)
     elif target_config.spec_path or args.target:
@@ -291,6 +304,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--timeout", type=float, default=30.0, help="Execution timeout in seconds")
     run_parser.add_argument("--allow-mutations", action="store_true", help="Allow mutating actions (R-SAFE-1)")
     run_parser.add_argument("--yes-i-know-prod", action="store_true", help="Explicit production confirmation (R-SAFE-2)")
+    run_parser.add_argument("--explore", action="store_true", help="Autonomous exploration mode (R-SAFE-3)")
 
     # Plan command
     plan_parser = subparsers.add_parser("plan", help="Generate and display test plan scenarios (FR-6)")

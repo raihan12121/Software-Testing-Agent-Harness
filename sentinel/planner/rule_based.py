@@ -18,9 +18,10 @@ class RuleBasedPlanner(Planner):
     """Generates test scenarios using deterministic testing heuristics."""
 
     def build_plan(self, target_model: TargetModel, memory_context: dict[str, Any] | None = None) -> TestPlan:
-        """Analyze TargetModel endpoints and construct comprehensive test scenarios."""
+        """Analyze TargetModel endpoints and construct comprehensive test scenarios biased by risk."""
         scenarios: list[Scenario] = []
         scenario_idx = 1
+        risk_map = (memory_context.get("risk_scores") if memory_context else {}) or {}
 
         for ep in target_model.endpoints:
             path = ep.get("path", "/")
@@ -32,6 +33,15 @@ class RuleBasedPlanner(Planner):
             security = ep.get("security", [])
 
             component = path.strip("/").split("/")[0] if path.strip("/") else "root"
+            comp_risk = risk_map.get(component, 0.2)
+
+            # Assign dynamic priority biased by risk index (Phase 3 exit gate)
+            if comp_risk >= 0.5:
+                happy_priority = "critical"
+            elif comp_risk == 0.0:
+                happy_priority = "low"
+            else:
+                happy_priority = "high"
 
             # 1. Happy Path Scenario
             expected_status = "200" if "200" in responses else ("201" if "201" in responses else "204")
@@ -41,7 +51,7 @@ class RuleBasedPlanner(Planner):
                     title=f"Happy Path: {method} {path}",
                     description=f"Send valid conforming request to {summary} and expect success ({expected_status}).",
                     target_component=component,
-                    priority="high",
+                    priority=happy_priority,
                     tags=["happy_path", "smoke", method.lower()],
                 )
             )
@@ -186,7 +196,9 @@ class RuleBasedPlanner(Planner):
                     tags=["crud_checklist", "coverage"],
                 )
             )
-            scenario_idx += 1
+        # Sort scenarios by priority (critical -> high -> medium -> low)
+        priority_rank = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+        scenarios.sort(key=lambda s: priority_rank.get(s.priority, 2))
 
         return TestPlan(
             project_id=target_model.name or "api-project",

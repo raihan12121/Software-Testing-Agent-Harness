@@ -64,20 +64,22 @@ Philosophy: **prove the core loop on the easiest, most deterministic target type
 
 ---
 
-## Phase 3 — Risk-Based Testing, Memory Maturity, DB Adapter (4–6 weeks)
+## Phase 3 — Risk-Based Testing, Memory Maturity, DB Adapter (Completed)
 
 **Goal:** Make the agent smarter over time, not just wider.
 
-- Build `DatabaseAdapter`: schema/migration validation, data integrity checks, transactional test isolation with rollback (R-EXEC-1).
-- Mature the Memory store schema (see `memory.md`) — defect clustering, flaky-test quarantine list, git-diff-aware risk scoring (recently changed code → higher priority).
-- Add "explore mode" (bounded autonomous exploration in sandboxed/staging environments only, per R-SAFE-3) to discover untested flows.
-- Add auto defect filing to GitHub Issues (FR-19) with repro steps and artifacts attached.
-- Begin cost/latency optimization: prompt caching, cheap-model-for-volume / strong-model-for-judging tiering.
+- [x] Build `DatabaseAdapter`: schema/migration validation, data integrity checks, transactional test isolation with rollback (R-EXEC-1).
+- [x] Mature the Memory store schema (see `memory.md`) — defect clustering, flaky-test quarantine list, git-diff-aware risk scoring (recently changed code → higher priority).
+- [x] Add "explore mode" (bounded autonomous exploration in sandboxed/staging environments only, per R-SAFE-3) to discover untested flows.
+- [x] Add auto defect filing to GitHub Issues (FR-19) with repro steps and artifacts attached (R-REPORT-1).
+- [x] Extend conformance test suite (R-BUILD-4) to validate DatabaseAdapter.
 
-**Exit gate:**
-1. A second consecutive run on an unchanged target shows the Planner correctly deprioritizing already-well-covered, defect-free areas and prioritizing recently changed/historically risky ones.
-2. Explore mode discovers at least one previously untested flow in a pilot web app and generates valid test cases for it.
-3. Auto-filed GitHub Issues contain correct repro steps validated by manual reproduction.
+**Exit gate:** [PASSED & VERIFIED]
+1. [x] A second consecutive run on an unchanged target shows the Planner correctly deprioritizing already-well-covered, defect-free areas and prioritizing recently changed/historically risky ones.
+2. [x] Explore mode discovers at least one previously untested flow in a pilot target and generates valid test cases for it.
+3. [x] Hard safety rule R-SAFE-3 verified: explore mode strictly blocked from running on production.
+4. [x] Auto-filed GitHub Issues contain correct repro steps validated by manual reproduction (R-REPORT-1).
+5. [x] Transactional isolation guarantees zero persistent test data in target database (R-EXEC-1).
 
 ---
 

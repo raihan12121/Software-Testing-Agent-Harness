@@ -247,3 +247,87 @@ class MemoryStore:
                 f"Human resolution recorded for {test_id} in {run_id}: "
                 f"{original_status} -> {resolved_status} by {resolved_by} (R-ORACLE-5)."
             )
+
+    def update_risk_index(
+        self,
+        project_id: str,
+        component: str,
+        defect_count: int = 0,
+        git_churn_score: float = 0.0,
+        coverage_ratio: float = 0.8,
+        flaky_count: int = 0,
+        failure_count_30d: int | None = None,
+        **kwargs: Any,
+    ) -> float:
+        """Calculate and persist composite risk score combining failures and git churn (memory.md §3)."""
+        if failure_count_30d is not None:
+            defect_count = failure_count_30d
+        computed_risk_score = min(1.0, round(0.6 * min(1.0, defect_count / 5.0) + 0.4 * git_churn_score, 3))
+        now_str = datetime.now(timezone.utc).isoformat()
+
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO risk_index (
+                    project_id, module, defect_count, churn_rate,
+                    coverage_ratio, flaky_count, risk_score, computed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    project_id,
+                    component,
+                    defect_count,
+                    git_churn_score,
+                    coverage_ratio,
+                    flaky_count,
+                    computed_risk_score,
+                    now_str,
+                ),
+            )
+            conn.commit()
+        return computed_risk_score
+
+    def get_risk_index(self, project_id: str | None = None) -> dict[str, float]:
+        """Return computed risk scores per module/component."""
+        with self.connection() as conn:
+            if project_id:
+                rows = conn.execute(
+                    """
+                    SELECT module, risk_score
+                    FROM risk_index
+                    WHERE project_id = ?
+                    ORDER BY computed_at DESC
+                    """,
+                    (project_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT module, risk_score
+                    FROM risk_index
+                    ORDER BY computed_at DESC
+                    """
+                ).fetchall()
+            result: dict[str, float] = {}
+            for r in rows:
+                if r["module"] not in result:
+                    result[r["module"]] = float(r["risk_score"])
+            return result
+
+    def quarantine_flaky_test(self, test_id: str, quarantined: bool = True) -> None:
+        """Quarantine or unquarantine an unreliable test in flaky_registry (memory.md §3)."""
+        status_val = 1 if quarantined else 0
+        with self.connection() as conn:
+            conn.execute(
+                "UPDATE flaky_registry SET quarantined = ? WHERE test_id = ?",
+                (status_val, test_id),
+            )
+            conn.commit()
+
+    def get_quarantined_test_ids(self) -> list[str]:
+        """Return list of test IDs in active quarantine."""
+        with self.connection() as conn:
+            rows = conn.execute(
+                "SELECT test_id FROM flaky_registry WHERE quarantined = 1"
+            ).fetchall()
+            return [r["test_id"] for r in rows]

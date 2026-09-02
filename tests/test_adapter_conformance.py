@@ -111,3 +111,17 @@ class TestCLIAdapterConformance(ConformanceSuiteBase):
 
     def get_valid_step(self) -> TestStep:
         return TestStep(action="cli_exec", path="python -c \"print('conformance_ok')\"")
+
+
+class TestDatabaseAdapterConformance(ConformanceSuiteBase):
+    """Validate DatabaseAdapter against conformance suite (R-BUILD-4)."""
+
+    def get_adapter(self) -> TargetAdapter:
+        from sentinel.adapters.db_adapter import DatabaseAdapter
+        return DatabaseAdapter()
+
+    def get_valid_config(self) -> TargetConfig:
+        return TargetConfig(target_type="database", name="test-db", base_url=":memory:")
+
+    def get_valid_step(self) -> TestStep:
+        return TestStep(action="sql_query", path="SELECT 1 as val;")
