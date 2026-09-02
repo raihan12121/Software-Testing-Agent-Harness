@@ -118,6 +118,7 @@ class CLIAdapter(TargetAdapter):
 
             raw_result = {
                 "exit_code": res.returncode,
+                "status_code": res.returncode,
                 "stdout": res.stdout,
                 "stderr": res.stderr,
                 "command": " ".join(cmd_args),

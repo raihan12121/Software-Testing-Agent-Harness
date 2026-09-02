@@ -53,9 +53,17 @@ class MemoryStore:
     _get_connection = connection
 
     def _init_db(self) -> None:
-        """Initialize database schema."""
+        """Initialize database schema with forward compatibility migrations."""
         with self.connection() as conn:
             conn.executescript(SCHEMA_SQL)
+            try:
+                conn.execute("ALTER TABLE runs ADD COLUMN user_id TEXT DEFAULT 'default_user'")
+            except Exception:
+                pass
+            try:
+                conn.execute("ALTER TABLE runs ADD COLUMN team_id TEXT DEFAULT 'default_team'")
+            except Exception:
+                pass
             conn.commit()
 
     def persist_run(self, report: Report, test_cases: list[TestCase]) -> None:

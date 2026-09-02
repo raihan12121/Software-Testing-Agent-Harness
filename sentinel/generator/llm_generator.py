@@ -67,6 +67,43 @@ class APITestGenerator(Generator):
         if not matched_ep:
             return None
 
+        # Handle CLI target type
+        if target_model.target_type == "cli":
+            cmd = f"{target_model.name} --help" if "help" in scenario.tags or "Happy" in scenario.title else f"{target_model.name} --version"
+            step = TestStep(action="cli_exec", path=cmd, timeout_seconds=10.0)
+            raw_case = {
+                "id": f"TC-{scenario.id}",
+                "target_type": "cli",
+                "title": scenario.title,
+                "priority": scenario.priority,
+                "tags": scenario.tags,
+                "steps": [step.model_dump()],
+                "expected": {"oracle": "deterministic", "assertions": ["status_code == 0", "exit_code == 0"]},
+                "mutating": False,
+                "generated_by": "CLITestGenerator_v1",
+                "source_context": f"cli://{target_model.name}",
+            }
+            return TestCase.model_validate(raw_case)
+
+        # Handle Database target type
+        if target_model.target_type in ("db", "database"):
+            ep_path = matched_ep.get("path", "table://items")
+            tbl = ep_path.split("//")[-1] if "//" in ep_path else "items"
+            step = TestStep(action="query", path=f"SELECT count(*) FROM {tbl};", timeout_seconds=10.0)
+            raw_case = {
+                "id": f"TC-{scenario.id}",
+                "target_type": "database",
+                "title": scenario.title,
+                "priority": scenario.priority,
+                "tags": scenario.tags,
+                "steps": [step.model_dump()],
+                "expected": {"oracle": "deterministic", "assertions": ["status_code == 200"]},
+                "mutating": False,
+                "generated_by": "DBTestGenerator_v1",
+                "source_context": f"db://{tbl}",
+            }
+            return TestCase.model_validate(raw_case)
+
         method = matched_ep.get("method", "GET").upper()
         path = matched_ep.get("path", "/")
         req_schema = matched_ep.get("request_body_schema")

@@ -67,7 +67,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         target_type = args.target_type or "stub"
         target_config = TargetConfig(
             target_type=target_type,
-            name=f"{target_type}-target",
+            name=args.target or f"{target_type}-target",
             spec_path=args.target,
         )
         run_config = RunConfig(
