@@ -36,8 +36,12 @@ class DatabaseAdapter(TargetAdapter):
                 or (self.target_config.base_url if self.target_config else None)
                 or ":memory:"
             )
-            # Enable autocommit=False to support explicit transaction isolation (R-EXEC-1)
-            self._conn = sqlite3.connect(db_uri, autocommit=False)
+            # Enable manual transaction control to support explicit transaction isolation (R-EXEC-1)
+            try:
+                self._conn = sqlite3.connect(db_uri, autocommit=False)
+            except TypeError:
+                # Python < 3.12 compatibility
+                self._conn = sqlite3.connect(db_uri, isolation_level=None)
             self._conn.row_factory = sqlite3.Row
         return self._conn
 

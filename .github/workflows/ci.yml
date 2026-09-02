@@ -43,3 +43,4 @@ jobs:
         with:
           name: sentinel-html-reports
           path: reports/
+          if-no-files-found: ignore
