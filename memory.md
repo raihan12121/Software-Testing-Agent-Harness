@@ -34,9 +34,9 @@ Memory serves four purposes:
 
 ---
 
-## 3. Storage Schema (v1 — SQLite; migrates to Postgres in Phase 4)
+## 3. Storage Schema (Built-in SQLite Default; Extensible to PostgreSQL)
 
-```sql
+Sentinel uses embedded SQLite as its primary zero-dependency storage engine for test runs, verdicts, and risk history, with automated `SAVEPOINT` transaction rollbacks for database target testing (R-EXEC-1). For external database testing, SQLite is built-in, while PostgreSQL and MongoDB drivers are supported via the optional `db-extended` package group.
 CREATE TABLE runs (
     run_id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,

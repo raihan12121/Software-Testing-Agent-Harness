@@ -11,24 +11,41 @@ Adheres to:
 from __future__ import annotations
 
 import concurrent.futures
+import json
 import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
+from pydantic import BaseModel, Field
 
 from sentinel.adapters.base import TargetAdapter, register_adapter
 from sentinel.core.config import TargetConfig
 from sentinel.core.logging import logger
 from sentinel.core.schemas import Artifact, Observation, TargetModel, TestStep
+from sentinel.llm.provider import LLMProvider, get_llm_provider
+
+
+class HealedLocatorProposal(BaseModel):
+    """Proposal for a healed locator derived from accessibility tree and LLM analysis."""
+    original_locator: str
+    proposed_locator: str
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score between 0.0 and 1.0")
+    reasoning: str = Field(..., description="Explanation of why this element matches the intended test action")
+    matched_role: str | None = Field(default=None, description="Accessibility role of matched element")
 
 
 class WebAdapter(TargetAdapter):
-    """Adapter for browser automation, DOM inspection, and visual capture via Playwright."""
+    """Adapter for browser automation, DOM inspection, visual capture, and locator self-healing via Playwright."""
 
-    def __init__(self, target_config: TargetConfig | None = None) -> None:
+    def __init__(
+        self,
+        target_config: TargetConfig | None = None,
+        llm_provider: LLMProvider | None = None,
+    ) -> None:
         self.target_config = target_config
+        self.llm_provider = llm_provider
         # Dedicated worker thread to ensure all Playwright calls share the same Greenlet/thread
         self._pool = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="sentinel_web")
         self._playwright = None
@@ -136,25 +153,66 @@ class WebAdapter(TargetAdapter):
             page_action = (action.action or "navigate").lower()
             target_path = action.path or ""
 
+            status_code = 200
             if page_action in ("navigate", "goto", "open"):
                 base_url = (self.target_config.base_url if self.target_config else None) or ""
                 full_url = target_path if (target_path.startswith("http://") or target_path.startswith("https://")) else f"{base_url.rstrip('/')}/{target_path.lstrip('/')}"
                 response = page.goto(full_url, timeout=timeout_ms)
                 status_code = response.status if response else 200
+            elif page_action in ("click", "tap", "fill", "type", "input", "press", "key"):
+                try:
+                    if page_action in ("click", "tap"):
+                        page.click(target_path, timeout=timeout_ms)
+                        status_code = 200
+                    elif page_action in ("fill", "type", "input"):
+                        text_to_fill = str(action.body if action.body is not None else action.params.get("text", ""))
+                        page.fill(target_path, text_to_fill, timeout=timeout_ms)
+                        status_code = 200
+                    elif page_action in ("press", "key"):
+                        key = str(action.params.get("key", "Enter"))
+                        page.press(target_path or "body", key, timeout=timeout_ms)
+                        status_code = 200
+                except Exception as action_exc:
+                    # Attempt self-healing via accessibility tree & LLM (P3 item 13)
+                    proposal = self._attempt_self_healing(page, action, page_action, target_path, action_exc)
+                    if proposal and proposal.confidence >= 0.70:
+                        diff_text = (
+                            f"--- Original Locator: {target_path}\n"
+                            f"+++ Proposed Healed Locator: {proposal.proposed_locator}\n"
+                            f"@@ Confidence: {proposal.confidence:.2f} @@\n"
+                            f"Reasoning: {proposal.reasoning}\n"
+                        )
+                        diff_dir = Path("artifacts") / "healing_proposals"
+                        diff_dir.mkdir(parents=True, exist_ok=True)
+                        diff_file = diff_dir / f"healing_{test_id}_{int(time.time() * 1000)}.diff"
+                        diff_file.write_text(diff_text, encoding="utf-8")
 
-            elif page_action in ("click", "tap"):
-                page.click(target_path, timeout=timeout_ms)
-                status_code = 200
-
-            elif page_action in ("fill", "type", "input"):
-                text_to_fill = str(action.body if action.body is not None else action.params.get("text", ""))
-                page.fill(target_path, text_to_fill, timeout=timeout_ms)
-                status_code = 200
-
-            elif page_action in ("press", "key"):
-                key = str(action.params.get("key", "Enter"))
-                page.press(target_path or "body", key, timeout=timeout_ms)
-                status_code = 200
+                        elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+                        return Observation(
+                            test_id=test_id,
+                            raw_result={
+                                "action": page_action,
+                                "original_locator": target_path,
+                                "healed_proposal": proposal.model_dump(),
+                                "status_code": 422,
+                                "needs_human_review": True,
+                            },
+                            artifacts=[
+                                Artifact(
+                                    path=str(diff_file),
+                                    mime_type="text/x-diff",
+                                    description=f"Self-healing proposal diff for {target_path}",
+                                    metadata={"confidence": proposal.confidence, "proposed": proposal.proposed_locator},
+                                )
+                            ],
+                            duration_ms=elapsed_ms,
+                            error=(
+                                f"LOCATOR_FAILED_HEALED_FOR_REVIEW: Selector '{target_path}' failed. "
+                                f"Self-healing proposed '{proposal.proposed_locator}' (confidence: {proposal.confidence:.2f}). "
+                                f"Proposed as diff for human review per rules.md."
+                            ),
+                        )
+                    raise action_exc
 
             elif page_action in ("evaluate", "eval", "js"):
                 eval_script = str(action.body or action.params.get("script", "document.title"))
@@ -221,6 +279,63 @@ class WebAdapter(TargetAdapter):
                 duration_ms=elapsed_ms,
                 error=f"WEB_EXECUTION_EXCEPTION: {exc}",
             )
+
+    def _attempt_self_healing(
+        self,
+        page: Page,
+        action: TestStep,
+        page_action: str,
+        target_path: str,
+        original_exc: Exception,
+    ) -> HealedLocatorProposal | None:
+        """Query page accessibility tree and prompt LLM to propose a healed locator diff for human review (P3 item 13)."""
+        try:
+            # 1. Capture accessibility tree snapshot
+            ax_snapshot = None
+            try:
+                ax_snapshot = page.accessibility.snapshot()
+            except Exception:
+                pass
+
+            candidates: list[dict[str, Any]] = []
+            if ax_snapshot:
+                def extract_nodes(node: dict[str, Any]):
+                    role = node.get("role", "")
+                    name = node.get("name", "")
+                    value = node.get("value", "")
+                    if role in ("button", "link", "textbox", "checkbox", "radio", "combobox", "menuitem", "tab"):
+                        candidates.append({"role": role, "name": name, "value": value})
+                    for child in node.get("children", []):
+                        extract_nodes(child)
+                extract_nodes(ax_snapshot)
+
+            candidates_summary = json.dumps(candidates[:25])
+            intent = action.metadata.get("intent") or action.metadata.get("description") or f"{page_action} {target_path}"
+
+            prompt = (
+                f"A web test action '{page_action}' failed with error: {original_exc}\n"
+                f"Failed selector: '{target_path}'\n"
+                f"Test intent / expected action: '{intent}'\n"
+                f"Accessibility tree elements on current page:\n{candidates_summary}\n\n"
+                f"Identify the intended element and propose a healed locator. "
+                f"Explain your reasoning and provide confidence (0.0 to 1.0)."
+            )
+
+            provider = self.llm_provider or get_llm_provider("auto")
+            proposal, metrics = provider.generate_structured(
+                prompt=prompt,
+                response_model=HealedLocatorProposal,
+                system_prompt="You are an expert SQA locator self-healing engine. Propose precise healed locators for review.",
+            )
+
+            logger.info(
+                f"SELF_HEALING_ATTEMPT: original='{target_path}' proposed='{proposal.proposed_locator}' "
+                f"confidence={proposal.confidence} reasoning='{proposal.reasoning}'"
+            )
+            return proposal
+        except Exception as heal_exc:
+            logger.warning(f"SELF_HEALING_FAILED: could not heal locator '{target_path}': {heal_exc}")
+            return None
 
     def capture_artifacts(self, observation: Observation) -> list[Artifact]:
         """Return captured artifacts."""

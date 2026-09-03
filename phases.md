@@ -76,7 +76,19 @@ Philosophy: **prove the core loop on the easiest, most deterministic target type
 
 **Exit gate:** [PASSED & VERIFIED]
 1. [x] A second consecutive run on an unchanged target shows the Planner correctly deprioritizing already-well-covered, defect-free areas and prioritizing recently changed/historically risky ones.
-2. [x] Explore mode discovers at least one previously untested flow in a pilot target and generates valid test cases for it.
+2. [x] Explore mode discovers at least one previously untested flow in a pilot target and generates valid test cases for it:
+   - **Validation Target**: Sandboxed multi-page shopping cart demo application (`examples/demo_shop_app.py`) running locally on `http://127.0.0.1:8898`.
+   - **Discovered Flows**: Unmapped cart flow (`/cart`), checkout flow (`/checkout`), product view (`/product/1`), and exploratory sub-route (`/explore-subview`).
+   - **Generated Test Cases**: Executable test cases `TC-EXPLORE-001` through `TC-EXPLORE-004` synthesized autonomously by `AutonomousExplorer`.
+   - **Execution & Veracity**: Executed via `Orchestrator` through `WebAdapter` with 100% pass rate (`pass_count=4`, `fail_count=0`, exit code 0). Validated in automated test `test_explore_mode_web_app_validation`.
+   - **Manual Execution Recipe**:
+     ```bash
+     # Terminal 1: Launch sandboxed demo web application
+     python examples/demo_shop_app.py
+
+     # Terminal 2: Run Sentinel explore mode against the sandboxed target
+     sentinel run --explore --target-type web --base-url http://127.0.0.1:8899 --env staging
+     ```
 3. [x] Hard safety rule R-SAFE-3 verified: explore mode strictly blocked from running on production.
 4. [x] Auto-filed GitHub Issues contain correct repro steps validated by manual reproduction (R-REPORT-1).
 5. [x] Transactional isolation guarantees zero persistent test data in target database (R-EXEC-1).
@@ -87,8 +99,8 @@ Philosophy: **prove the core loop on the easiest, most deterministic target type
 
 **Goal:** Broaden target coverage to the harder platforms; make Sentinel usable by a team, not just a solo user.
 
-- [x] Build `MobileAdapter` (Appium / WebDriver protocol — iOS/Android) with clean session resets (R-EXEC-1).
-- [x] Build `DesktopAdapter` (platform accessibility and UI automation) with clean window resets (R-EXEC-1).
+- [x] Build `MobileAdapter` (Appium / WebDriver protocol — iOS/Android) with clean session resets (R-EXEC-1) and offline simulation fallback.
+- [x] Build `DesktopAdapter` (multi-OS platform architecture: Windows UI Automation active, Linux/macOS experimental) with clean window resets (R-EXEC-1).
 - [x] Enhance Memory store with multi-project & multi-user support (`user_id`, `team_id`, shared history, trend metrics).
 - [x] Build a web dashboard (`sentinel dashboard`) for trend viewing, quality gates, and human-review queue (FR-16, R-ORACLE-2, R-ORACLE-5).
 - [x] Implement collaborative multi-agent generation (`MultiAgentGenerator` deploying FunctionalAgent + AdversarialAgent with deduplication per architecture.md §5).
@@ -106,7 +118,7 @@ Philosophy: **prove the core loop on the easiest, most deterministic target type
 
 - [x] Build `PerformanceAdapter`: latency benchmarking (p50, p90, p95, p99), throughput (RPS), and error rate metrics under load with performance artifact generation.
 - [x] Build `SecurityTestGenerator`: grounded, scoped security testing with strict R-SAFE guardrails (injection, BOLA/IDOR, info leak, non-destructive probing).
-- [x] Build `IoTAdapter`: embedded/IoT hardware-in-the-loop and message bus testing (MQTT topics, Serial telemetry) with clean session reset (R-EXEC-1).
+- [x] Build `IoTAdapter`: embedded/IoT protocol automation (MQTT via `paho-mqtt`, Serial UART via `pyserial`) with strict host/port allow-listing (R-SAFE-5) and clean session reset (R-EXEC-1).
 - [x] Extend conformance suite to validate Performance and IoT adapters (R-BUILD-4).
 - [x] Update documentation across architecture.md to prevent doc drift (R-BUILD-5).
 

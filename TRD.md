@@ -30,14 +30,15 @@ This document translates the PRD's functional goals into concrete technical requ
 
 ### 2.3 Adapter Technologies (by target type)
 
-| Target type | Library/Tooling | Protocol |
-|---|---|---|
-| API (REST/GraphQL) | `httpx`, `jsonschema`, `graphql-core` | HTTP/HTTPS |
-| Web app | Playwright (Python or Node bridge) | CDP / browser automation |
-| CLI | `subprocess`, `pexpect` (for interactive CLIs) | stdin/stdout/stderr/exit code |
-| Database | `sqlalchemy` (SQL), native drivers (Mongo, Redis, etc.) | DB wire protocols |
-| Mobile | Appium (WebDriver protocol) | WebDriver / device automation |
-| Desktop | WinAppDriver (Windows), AT-SPI (Linux), Accessibility API (macOS) | OS accessibility trees |
+| Target type | Library/Tooling | Protocol | Status / Requirements |
+|---|---|---|---|
+| API (REST/GraphQL) | `httpx`, `jsonschema` | HTTP/HTTPS | Core / Built-in |
+| Web app | Playwright | CDP / browser automation | Core / Built-in |
+| CLI | `subprocess` | stdin/stdout/stderr/exit code | Core / Built-in |
+| Database | `sqlite3` (built-in default); `psycopg` (Postgres), `pymongo` (Mongo) | SQL wire / BSON | Built-in SQLite; `[db-extended]` for Postgres/Mongo |
+| Mobile | Appium Python Client (WebDriver protocol) | WebDriver / W3C Actions | `[mobile]` extra; requires running Appium server; offline simulation fallback |
+| Desktop | Windows UI Automation / `pywinauto` (Windows); AT-SPI (Linux); pyobjc (macOS) | OS accessibility trees | `[desktop]` extra; Windows implementation active; Linux/macOS experimental |
+| IoT | `paho-mqtt` (MQTT), `pyserial` (Serial UART) | MQTT / Serial UART | `[iot]` extra; requires broker or serial device; R-SAFE-5 allow-list |
 
 ### 2.4 Data & Storage
 - **Test case store:** structured files (YAML/JSON) in a `tests/generated/` directory, version-controlled, human-diffable.

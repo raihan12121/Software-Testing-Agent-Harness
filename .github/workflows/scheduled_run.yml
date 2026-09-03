@@ -1,0 +1,64 @@
+name: Scheduled Nightly SQA Run
+
+on:
+  schedule:
+    # Run nightly at 02:00 UTC (sandboxed staging exploration)
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment (staging or local)'
+        required: true
+        default: 'staging'
+      target_url:
+        description: 'Target Base URL'
+        required: false
+        default: 'https://staging.example.com'
+
+jobs:
+  nightly-exploration:
+    name: Nightly Autonomous Explore & SQA Suite
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install uv and project dependencies
+        run: |
+          python -m pip install --upgrade pip uv
+          uv pip install --system -e ".[all,dev]"
+          playwright install --with-deps chromium
+
+      - name: Run Sentinel Explore Mode against Staging
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sentinel run \
+            --explore \
+            --target-type web \
+            --base-url "${{ github.event.inputs.target_url || 'https://staging.example.com' }}" \
+            --env "${{ github.event.inputs.environment || 'staging' }}" \
+            --format json \
+            --output-dir reports \
+            --allow-mutations
+
+      - name: Upload SQA Reports & Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-nightly-reports
+          path: |
+            reports/
+            artifacts/
+          retention-days: 14

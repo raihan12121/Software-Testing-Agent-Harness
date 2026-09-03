@@ -12,6 +12,17 @@ requires-python = ">=3.11"
 authors = [
     { name = "Muhammad Raihan Molla", email = "raihan12121@users.noreply.github.com" }
 ]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Software Development :: Quality Assurance",
+]
 dependencies = [
     "pydantic>=2.7.0",
     "pyyaml>=6.0.1",
@@ -25,15 +36,44 @@ dependencies = [
     "anthropic>=1.3.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/raihan12121/Software-Testing-Agent-Harness"
+Repository = "https://github.com/raihan12121/Software-Testing-Agent-Harness"
+Documentation = "https://github.com/raihan12121/Software-Testing-Agent-Harness#readme"
+"Bug Tracker" = "https://github.com/raihan12121/Software-Testing-Agent-Harness/issues"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
     "pytest-cov>=5.0.0",
     "ruff>=0.4.0",
+    "build>=1.1.0",
+    "twine>=5.0.0",
 ]
 api = [
     "httpx>=0.27.0",
     "jsonschema>=4.21.0",
+]
+mobile = [
+    "appium-python-client>=3.0.0",
+]
+desktop = [
+    "pywinauto>=0.6.8; platform_system == 'Windows'",
+]
+iot = [
+    "paho-mqtt>=1.6.1",
+    "pyserial>=3.5",
+]
+db-extended = [
+    "psycopg2-binary>=2.9.9",
+    "pymongo>=4.6.0",
+]
+all = [
+    "appium-python-client>=3.0.0",
+    "paho-mqtt>=1.6.1",
+    "pyserial>=3.5",
+    "psycopg2-binary>=2.9.9",
+    "pymongo>=4.6.0",
 ]
 
 [project.scripts]

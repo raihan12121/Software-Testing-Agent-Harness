@@ -36,11 +36,13 @@ sentinel/
 ├── adapters/
 │   ├── base.py                # TargetAdapter Protocol
 │   ├── api_adapter/
-│   ├── web_adapter/
+│   ├── web_adapter/           # Playwright + Accessibility tree locator self-healing
 │   ├── cli_adapter/
-│   ├── db_adapter/
-│   ├── mobile_adapter/        # Phase 4
-│   └── desktop_adapter/       # Phase 4
+│   ├── db_adapter/            # SQLite, PostgreSQL (psycopg), MongoDB (pymongo)
+│   ├── mobile_adapter/        # Appium / WebDriver protocol (iOS/Android)
+│   ├── desktop_adapter/       # Multi-OS factory (Windows UIA / Linux AT-SPI / macOS)
+│   ├── iot_adapter/           # MQTT (paho) & Serial (pyserial)
+│   └── perf_adapter/          # Locust / load testing
 ├── memory/
 │   ├── store.py               # SQLite (v1) / Postgres (v4) abstraction
 │   ├── models.py              # run, test_history, defect, flaky_test, risk_index tables

@@ -1,5 +1,7 @@
 """Unit tests for MobileAdapter (iOS & Android)."""
 
+from unittest.mock import MagicMock
+
 from sentinel.adapters.mobile_adapter.adapter import MobileAdapter
 from sentinel.core.config import TargetConfig
 from sentinel.core.schemas import TestStep
@@ -62,3 +64,52 @@ def test_mobile_adapter_session_reset_isolation():
     assert adapter._session_active is False
     assert len(adapter._current_state) == 0
     adapter.close()
+
+
+def test_mobile_adapter_appium_driver_integration():
+    """Verify MobileAdapter introspects accessibility tree and dispatches actions through Appium driver."""
+    config = TargetConfig(
+        target_type="mobile",
+        name="LiveApp",
+        custom_options={"platformName": "Android", "appPackage": "com.example.app"},
+    )
+    adapter = MobileAdapter(config)
+
+    # Mock real Appium remote driver
+    mock_driver = MagicMock()
+    mock_driver.page_source = """
+    <hierarchy rotation="0">
+        <android.widget.FrameLayout id="content">
+            <android.widget.Button resource-id="com.example:id/submit_btn" text="Submit" clickable="true" />
+            <android.widget.EditText resource-id="com.example:id/name_box" text="" />
+        </android.widget.FrameLayout>
+    </hierarchy>
+    """
+    mock_element = MagicMock()
+    mock_driver.find_element.return_value = mock_element
+    adapter._driver = mock_driver
+
+    # 1. Discover introspects live XML hierarchy
+    model = adapter.discover(config)
+    assert model.metadata["live_appium"] is True
+    discovered_elements = model.endpoints[0]["metadata"]["elements"]
+    assert any("submit_btn" in el["id"] for el in discovered_elements)
+
+    # 2. Execute tap on button
+    tap_step = TestStep(action="tap", path="submit_btn")
+    obs = adapter.execute_action(tap_step)
+    assert obs.raw_result["status_code"] == 200
+    mock_element.click.assert_called_once()
+
+    # 3. Execute fill
+    fill_step = TestStep(action="fill", path="name_box", body="Ada Lovelace")
+    obs_fill = adapter.execute_action(fill_step)
+    assert obs_fill.raw_result["status_code"] == 200
+    mock_element.send_keys.assert_called_with("Ada Lovelace")
+
+    # 4. Session teardown / terminate app (R-EXEC-1)
+    adapter.reset_state(config)
+    mock_driver.terminate_app.assert_called_with("com.example.app")
+
+    adapter.close()
+    mock_driver.quit.assert_called_once()

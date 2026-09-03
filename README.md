@@ -7,13 +7,14 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docker Support](https://img.shields.io/badge/docker-ready-2496ED.svg)](Dockerfile)
 
-> **Sentinel** is an enterprise-grade autonomous software testing agent harness. It discovers, plans, generates, executes, and evaluates tests across **REST APIs, Web Frontends (Playwright), Databases (SQL with automatic rollback), CLI binaries, Mobile, Desktop, and IoT platforms** under strict safety guardrails, dual evaluation oracles, and collaborative multi-agent architecture.
+> **Sentinel** is an enterprise-grade autonomous software testing agent harness. It discovers, plans, generates, executes, and evaluates tests across **REST APIs, Web Frontends (Playwright), Databases (SQL with automatic rollback), CLI binaries, Mobile (Appium), Desktop (UI Automation), and IoT platforms** under strict safety guardrails, dual evaluation oracles, and collaborative multi-agent architecture.
 
 ---
 
 ## 📑 Table of Contents
 
 - [Key Capabilities](#-key-capabilities)
+- [Adapter Support & Readiness Matrix](#-adapter-support--readiness-matrix)
 - [System Architecture](#-system-architecture)
 - [Quick Start](#-quick-start)
 - [Interactive Project Testing (`sentinel test`)](#-interactive-project-testing)
@@ -55,6 +56,20 @@
 7. **Live Web Dashboard & REST API**:
    Starlette/Uvicorn server providing team-wide test run monitoring, defect tracking, review queue resolution, and interactive reports.
 
+### 🔌 Adapter Support & Readiness Matrix
+
+| Adapter | Supported Platforms / Protocols | Status | Installation Extra | Prerequisites |
+|---|---|---|---|---|
+| **API** | REST, OpenAPI 3.0 / 3.1 | ✅ Production Ready | Built-in | None |
+| **Web** | Modern Browsers (Playwright) | ✅ Production Ready | Built-in | `playwright install chromium` |
+| **CLI** | Console tools, command-line interfaces | ✅ Production Ready | Built-in | None |
+| **Database (SQLite)** | Embedded SQLite | ✅ Production Ready | Built-in | None |
+| **Database (Extended)** | PostgreSQL, MongoDB | ✅ Real Drivers | `pip install "sentinel-sqa[db-extended]"` | Running Postgres or MongoDB server |
+| **Mobile** | iOS / Android via Appium | ✅ Real WebDriver | `pip install "sentinel-sqa[mobile]"` | Running Appium server (e.g. `http://127.0.0.1:4723`) |
+| **Desktop** | Windows (UIA), Linux (AT-SPI), macOS (AX) | ✅ Active (Windows) / Experimental | `pip install "sentinel-sqa[desktop]"` | Target desktop application on host |
+| **IoT** | MQTT, Serial UART | ✅ Real Protocols | `pip install "sentinel-sqa[iot]"` | MQTT broker / Serial device port |
+| **Performance** | HTTP load testing, latency percentiles | ✅ Production Ready | Built-in | None |
+
 ---
 
 ## 🏗️ System Architecture
@@ -95,12 +110,28 @@
 
 ### 1. Installation
 
+#### Via PyPI
+```bash
+# Standard installation with core adapters (API, Web, CLI, SQLite, Perf)
+pip install sentinel-sqa
+
+# With optional adapter extras
+pip install "sentinel-sqa[mobile]"       # Appium mobile automation
+pip install "sentinel-sqa[desktop]"      # Desktop UI Automation
+pip install "sentinel-sqa[iot]"          # MQTT & Serial UART
+pip install "sentinel-sqa[db-extended]"  # PostgreSQL & MongoDB
+
+# Or install all extras together
+pip install "sentinel-sqa[all]"
+```
+
+#### From Source (Development)
 ```bash
 # Clone the repository
 git clone https://github.com/raihan12121/Software-Testing-Agent-Harness.git
 cd Software-Testing-Agent-Harness
 
-# Sync all dependencies including dev tools
+# Sync all dependencies including dev tools via uv
 uv sync --all-extras
 ```
 
@@ -318,6 +349,53 @@ On every commit and pull request:
 2. Executes all 105 automated unit and regression tests with code coverage.
 3. Runs an autonomous self-test against CLI targets.
 4. Publishes interactive HTML test reports as build artifacts.
+
+### Scheduled Nightly Exploration (Recipe)
+
+Rather than running a custom daemon process, Sentinel is designed to leverage standard CI/CD platform schedulers. A pre-configured GitHub Actions scheduled workflow is provided in `.github/workflows/scheduled_run.yml`:
+
+```yaml
+name: Scheduled Nightly SQA Run
+
+on:
+  schedule:
+    # Trigger nightly at 02:00 UTC against staging
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  nightly-exploration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: |
+          pip install uv
+          uv pip install --system -e ".[all]"
+          playwright install --with-deps chromium
+      - name: Run Sentinel Explore Mode
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sentinel run \
+            --explore \
+            --target-type web \
+            --base-url "https://staging.example.com" \
+            --env staging \
+            --format json \
+            --output-dir reports \
+            --allow-mutations
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-sqa-reports
+          path: reports/
+```
+
+Failures discovered during the run are automatically tracked in `MemoryStore` and filed as GitHub Issues with reproducible steps and captured artifacts attached (per `R-REPORT-1`).
 
 ---
 

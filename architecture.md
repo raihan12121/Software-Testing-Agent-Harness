@@ -100,11 +100,11 @@ Each adapter implements the `TargetAdapter` interface (TRD.md §3.1). Adapters a
 - **`APIAdapter`**: OpenAPI 3.0/3.1 spec parser, HTTP request execution with host allowlisting (R-SAFE-5).
 - **`WebAdapter`**: Playwright browser automation with worker thread pool isolation and visual diffing.
 - **`CLIAdapter`**: Isolated subprocess execution, argument parsing, stdout/stderr/exit code assertions.
-- **`DatabaseAdapter`**: Schema introspection, SQL query execution, and transactional rollback isolation via SAVEPOINT (R-EXEC-1).
-- **`MobileAdapter`**: Appium / WebDriver protocol for iOS and Android with session reset isolation.
-- **`DesktopAdapter`**: Desktop window and control inspection via accessibility automation.
+- **`DatabaseAdapter`**: Built-in SQLite default with automatic `SAVEPOINT` transaction rollback isolation (R-EXEC-1); optional PostgreSQL and MongoDB support via `[db-extended]`.
+- **`MobileAdapter`**: Appium / WebDriver protocol for iOS and Android via `[mobile]` extra (requires running Appium server; provides simulation fallback when offline).
+- **`DesktopAdapter`**: Multi-OS accessibility inspection via `[desktop]` extra (Windows UI Automation implementation active; Linux AT-SPI and macOS experimental).
 - **`PerformanceAdapter`**: Latency benchmarking (p50, p90, p95, p99), throughput (RPS), and error rate metrics under load.
-- **`IoTAdapter`**: MQTT message bus and Serial telemetry testing with state reset.
+- **`IoTAdapter`**: Genuine MQTT and Serial UART automation via `[iot]` extra with strict device/broker allow-listing (R-SAFE-5) and session reset (R-EXEC-1).
 - **`StubAdapter`**: In-memory test double for zero-dependency conformance testing.
 
 Generators:

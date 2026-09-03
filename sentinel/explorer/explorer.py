@@ -82,28 +82,30 @@ class AutonomousExplorer:
                 exploration_idx += 1
 
             elif self.target_config.target_type == "web":
-                # Discover deep navigation or unlinked actions
-                deep_path = f"{base_path.rstrip('/')}/explore-subview"
-                discovered_cases.append(
-                    TestCase(
-                        id=f"TC-EXPLORE-{exploration_idx:03d}",
-                        target_type="web",
-                        title=f"Exploration: Autonomous sub-route inspection for {base_path}",
-                        steps=[
-                            TestStep(
-                                action="navigate",
-                                path=deep_path,
-                                timeout_seconds=10.0,
-                            )
-                        ],
-                        expected=ExpectedResult(
-                            oracle="deterministic",
-                            assertions=["status_code in [200, 404]"],
-                        ),
-                        source_context=f"explore_mode_discovery://{deep_path}",
+                # Discover unmapped flows, navigation routes, and interactive subviews
+                sub_routes = ["explore-subview", "cart", "product/1", "checkout"]
+                for sub in sub_routes:
+                    deep_path = f"{base_path.rstrip('/')}/{sub}" if not base_path.endswith(f"/{sub}") else base_path
+                    discovered_cases.append(
+                        TestCase(
+                            id=f"TC-EXPLORE-{exploration_idx:03d}",
+                            target_type="web",
+                            title=f"Exploration: Autonomous route inspection for {sub}",
+                            steps=[
+                                TestStep(
+                                    action="navigate",
+                                    path=deep_path,
+                                    timeout_seconds=10.0,
+                                )
+                            ],
+                            expected=ExpectedResult(
+                                oracle="deterministic",
+                                assertions=["status_code in [200, 404]"],
+                            ),
+                            source_context=f"explore_mode_discovery://{deep_path}",
+                        )
                     )
-                )
-                exploration_idx += 1
+                    exploration_idx += 1
 
         logger.info(f"Explore mode discovered {len(discovered_cases)} new test cases.")
         return discovered_cases

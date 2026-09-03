@@ -1,6 +1,14 @@
-"""Unit tests for DesktopAdapter."""
+"""Unit tests for DesktopAdapter multi-OS platform architecture."""
 
-from sentinel.adapters.desktop_adapter.adapter import DesktopAdapter
+import pytest
+
+from sentinel.adapters.desktop_adapter.adapter import (
+    DesktopAdapter,
+    LinuxDesktopAdapter,
+    MacOSDesktopAdapter,
+    WindowsDesktopAdapter,
+    get_desktop_adapter,
+)
 from sentinel.core.config import TargetConfig
 from sentinel.core.schemas import TestStep
 
@@ -58,3 +66,27 @@ def test_desktop_adapter_reset_state_isolation():
     assert adapter._active_window is None
     assert len(adapter._controls_state) == 0
     adapter.close()
+
+
+def test_desktop_multi_os_factory_and_exceptions(monkeypatch):
+    """Verify platform detection and honest NotImplementedError on un-implemented platforms (P2 item 10)."""
+    # 1. Windows platform returns WindowsDesktopAdapter
+    monkeypatch.setattr("sys.platform", "win32")
+    win_adapter = get_desktop_adapter()
+    assert isinstance(win_adapter, WindowsDesktopAdapter)
+
+    # 2. Linux platform returns LinuxDesktopAdapter and raises NotImplementedError when real execution requested
+    monkeypatch.setattr("sys.platform", "linux")
+    linux_adapter = get_desktop_adapter()
+    assert isinstance(linux_adapter, LinuxDesktopAdapter)
+    with pytest.raises(NotImplementedError) as exc_linux:
+        linux_adapter.discover(TargetConfig(target_type="desktop", name="LinuxApp"))
+    assert "AT-SPI" in str(exc_linux.value)
+
+    # 3. macOS platform returns MacOSDesktopAdapter and raises NotImplementedError
+    monkeypatch.setattr("sys.platform", "darwin")
+    mac_adapter = get_desktop_adapter()
+    assert isinstance(mac_adapter, MacOSDesktopAdapter)
+    with pytest.raises(NotImplementedError) as exc_mac:
+        mac_adapter.execute_action(TestStep(action="click"))
+    assert "pyobjc" in str(exc_mac.value)

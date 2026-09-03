@@ -125,6 +125,9 @@ class MockLLMProvider(LLMProvider):
         return instance, metrics
 
 
+DEFAULT_ANTHROPIC_MODEL = "claude-3-5-sonnet-latest"
+
+
 class AnthropicLLMProvider(LLMProvider):
     """Production LLM Provider powered by Anthropic Claude tool calling.
 
@@ -136,10 +139,15 @@ class AnthropicLLMProvider(LLMProvider):
 
     def __init__(
         self,
-        model_name: str = "claude-3-5-sonnet-20241022",
+        model_name: str | None = None,
         api_key: str | None = None,
     ) -> None:
-        self.model_name = model_name
+        self.model_name = (
+            model_name
+            or os.environ.get("SENTINEL_LLM_MODEL")
+            or os.environ.get("ANTHROPIC_MODEL")
+            or DEFAULT_ANTHROPIC_MODEL
+        )
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not self.api_key:
             raise ValueError(
@@ -219,14 +227,19 @@ def get_llm_provider(
     model_name: str | None = None,
 ) -> LLMProvider:
     """Resolve and return an LLM provider based on configuration or environment (R-BUILD-3)."""
+    resolved_model = (
+        model_name
+        or os.environ.get("SENTINEL_LLM_MODEL")
+        or os.environ.get("ANTHROPIC_MODEL")
+    )
     if provider_type == "mock":
-        return MockLLMProvider(model_name=model_name or "mock-claude-3-5-sonnet")
+        return MockLLMProvider(model_name=resolved_model or "mock-claude-3-5-sonnet")
 
     if provider_type == "anthropic":
-        return AnthropicLLMProvider(model_name=model_name or "claude-3-5-sonnet-20241022")
+        return AnthropicLLMProvider(model_name=resolved_model or DEFAULT_ANTHROPIC_MODEL)
 
     # Auto: use Anthropic if ANTHROPIC_API_KEY is available, otherwise Mock
     if os.environ.get("ANTHROPIC_API_KEY"):
-        return AnthropicLLMProvider(model_name=model_name or "claude-3-5-sonnet-20241022")
+        return AnthropicLLMProvider(model_name=resolved_model or DEFAULT_ANTHROPIC_MODEL)
 
-    return MockLLMProvider(model_name=model_name or "mock-claude-3-5-sonnet")
+    return MockLLMProvider(model_name=resolved_model or "mock-claude-3-5-sonnet")

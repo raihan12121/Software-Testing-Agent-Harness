@@ -64,7 +64,7 @@
 
 ## 7. Engineering / Build Rules (for the team building Sentinel itself)
 
-27. **R-BUILD-1 — Adapters never talk to the LLM.** Only the Planner/Generator/Oracle components call the LLM; adapters are pure execution/introspection code. This keeps the "hands" deterministic and testable in isolation (mock-the-model unit testing pattern).
+27. **R-BUILD-1 — Adapters never talk to the LLM by default.** Only the Planner/Generator/Oracle components call the LLM; adapters are primarily deterministic execution/introspection engines. Exception: WebAdapter locator self-healing (P3 item 13), where an injected `LLMProvider` is permitted to analyze accessibility trees when a selector fails to propose a candidate diff for human review (never silently swapping selectors in-place).
 28. **R-BUILD-2 — Core has zero target-specific imports.** The orchestrator, planner, generator, and oracle must never import a specific adapter (e.g., `playwright`) directly — only via the `TargetAdapter` interface, enforced by lint rule / import boundary check.
 29. **R-BUILD-3 — Every LLM call is logged with cost/latency.** No LLM call ships without instrumentation (prompt hash, token count, latency, cost) for observability and budget control.
 30. **R-BUILD-4 — New adapters require a conformance test suite.** Before a new adapter is merged, it must pass a standard adapter-conformance test suite (discover/execute/capture/reset all behave per interface contract) to guarantee it plugs into the core loop correctly.
