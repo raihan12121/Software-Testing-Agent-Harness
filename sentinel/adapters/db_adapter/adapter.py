@@ -22,7 +22,11 @@ try:
     import psycopg
     HAS_PSYCOPG = True
 except ImportError:
-    HAS_PSYCOPG = False
+    try:
+        import psycopg2 as psycopg
+        HAS_PSYCOPG = True
+    except ImportError:
+        HAS_PSYCOPG = False
 
 try:
     import pymongo

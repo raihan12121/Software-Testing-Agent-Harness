@@ -65,6 +65,7 @@ iot = [
     "pyserial>=3.5",
 ]
 db-extended = [
+    "psycopg>=3.1.0",
     "psycopg2-binary>=2.9.9",
     "pymongo>=4.6.0",
 ]
@@ -72,6 +73,7 @@ all = [
     "appium-python-client>=3.0.0",
     "paho-mqtt>=1.6.1",
     "pyserial>=3.5",
+    "psycopg>=3.1.0",
     "psycopg2-binary>=2.9.9",
     "pymongo>=4.6.0",
 ]

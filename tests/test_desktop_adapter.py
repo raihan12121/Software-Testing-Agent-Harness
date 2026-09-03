@@ -75,18 +75,19 @@ def test_desktop_multi_os_factory_and_exceptions(monkeypatch):
     win_adapter = get_desktop_adapter()
     assert isinstance(win_adapter, WindowsDesktopAdapter)
 
-    # 2. Linux platform returns LinuxDesktopAdapter and raises NotImplementedError when real execution requested
+    # 2. Linux platform returns LinuxDesktopAdapter and raises NotImplementedError when real driver requested
     monkeypatch.setattr("sys.platform", "linux")
     linux_adapter = get_desktop_adapter()
     assert isinstance(linux_adapter, LinuxDesktopAdapter)
     with pytest.raises(NotImplementedError) as exc_linux:
-        linux_adapter.discover(TargetConfig(target_type="desktop", name="LinuxApp"))
+        linux_adapter.discover(TargetConfig(target_type="desktop", name="LinuxApp", custom_options={"real_driver": True}))
     assert "AT-SPI" in str(exc_linux.value)
 
-    # 3. macOS platform returns MacOSDesktopAdapter and raises NotImplementedError
+    # 3. macOS platform returns MacOSDesktopAdapter and raises NotImplementedError when real driver requested
     monkeypatch.setattr("sys.platform", "darwin")
     mac_adapter = get_desktop_adapter()
     assert isinstance(mac_adapter, MacOSDesktopAdapter)
+    mac_adapter.target_config = TargetConfig(target_type="desktop", custom_options={"real_driver": True})
     with pytest.raises(NotImplementedError) as exc_mac:
         mac_adapter.execute_action(TestStep(action="click"))
     assert "pyobjc" in str(exc_mac.value)
