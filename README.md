@@ -230,6 +230,7 @@ Select your target from the terminal menu, and Sentinel generates a prioritized 
 | `sentinel plan [OPTIONS]` | Preview generated test scenarios and prioritization without running. |
 | `sentinel review [OPTIONS]` | Interactive CLI review queue for pending or low-confidence verdicts. |
 | `sentinel dashboard [OPTIONS]` | Launch the team web dashboard and REST API server. |
+| `sentinel studio [OPTIONS]` | Launch Sentinel Studio Desktop Application (Live Viewport, Computer Use & Key Vault). |
 | `sentinel init [OPTIONS]` | Scaffold a starter `sentinel.config.yaml` configuration file. |
 
 ### `sentinel run` Options & Flags
@@ -408,6 +409,28 @@ Open `http://localhost:8080` to access:
 
 ---
 
+## 🖥️ Sentinel Studio — Autonomous QA Desktop Application
+
+Launch the full **Sentinel Studio Desktop IDE** with Live Mirrored Viewport, Enhanced Set-of-Marks Computer Use, and Local Encrypted Key Vault:
+
+```bash
+# Launch native desktop application window
+sentinel studio
+
+# Or launch in your preferred web browser
+sentinel studio --browser --port 8765
+```
+
+### Features in Sentinel Studio Desktop:
+- 🎯 **Enhanced Dual-Grounded Computer Use:** Uses indexed Set-of-Marks visual badges (`[1]`, `[2]`, `[3]`) mapped to DOM selectors and accessibility trees, eliminating coordinate drift and cutting token costs by 75%.
+- 👁️ **Live Interactive Viewport Canvas:** Mirrored browser viewport supporting real-time mouse click/keyboard passthrough directly into the application under test.
+- 🧠 **Real-Time Agent Thought Stream:** Watch the autonomous agent reason, plan test journeys, and report self-healing locator adaptations in real time.
+- ⚡ **Record-to-Code Synthesis:** Every autonomous or manual step compiles live into standard Sentinel YAML test cases and native Playwright Python test scripts for $0-token CI/CD headless replay.
+- 🔑 **Encrypted API Key & Model Vault:** Connect and test keys for Anthropic Claude (Computer Use), OpenAI (GPT-4o), Google Gemini, Local Ollama, and GitHub.
+- 🔍 **Deep Telemetry Inspector:** Live network waterfall, browser console logs, element locator inspector, and visual diff viewer.
+
+---
+
 ## 🚢 Deployment Options
 
 ### 1. Cloud Deployment (Railway / Render)
@@ -552,6 +575,38 @@ uv run pytest --cov=sentinel --cov-report=term
 # Run code style linter
 uv run ruff check .
 ```
+
+---
+
+## 🖥️ Sentinel QA Studio (Desktop Application)
+
+Sentinel Studio is a native desktop application (AI-first QA Workstation inspired by Google Antigravity).
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  [SENTINEL STUDIO]   ● Live Daemon     Model: Claude 3.5    │
+├──────────────┬──────────────────────────┬───────────────────┤
+│  Explorer    │  Agent Thought Stream    │  Viewport Sidecar │
+│  Targets     │  Chain of thought        │  [1] [2] [3] SoM  │
+│  Actions     │  Adversarial hypotheses  │  Manual Toolbar   │
+│  Test Specs  │  Co-Pilot Approval Gate  │  Network Dock     │
+└──────────────┴──────────────────────────┴───────────────────┘
+```
+
+### Installation & Launching on Windows
+
+Sentinel Studio is installed as a native Windows desktop application:
+
+1. **Launch from Desktop**: Double-click the **Sentinel QA Studio** shortcut on your Desktop.
+2. **Launch from Start Menu**: Press `Windows Key`, type `Sentinel`, and press `Enter`.
+3. **Launch Executable Directly**:
+   ```powershell
+   & "$env:LOCALAPPDATA\Programs\SentinelStudio\SentinelStudio.exe"
+   ```
+4. **Reinstall / Update Installer**:
+   ```powershell
+   .\scripts\install_desktop_app.ps1
+   ```
 
 ---
 

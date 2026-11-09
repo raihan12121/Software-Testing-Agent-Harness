@@ -13,6 +13,7 @@ import shlex
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 from sentinel.adapters.base import TargetAdapter, register_adapter
@@ -128,6 +129,18 @@ class CLIAdapter(TargetAdapter):
             artifacts: list[Artifact] = []
             if res.returncode != 0 or action.metadata.get("capture_artifacts", False):
                 artifact_path = f"artifacts/{test_id}_cli_output.log"
+                try:
+                    p = Path(artifact_path)
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    p.write_text(
+                        f"COMMAND: {' '.join(cmd_args)}\n"
+                        f"EXIT CODE: {res.returncode}\n"
+                        f"--- STDOUT ---\n{res.stdout}\n"
+                        f"--- STDERR ---\n{res.stderr}\n",
+                        encoding="utf-8",
+                    )
+                except Exception as exc:
+                    logger.warning(f"Failed writing CLI artifact to {artifact_path}: {exc}")
                 artifacts.append(
                     Artifact(
                         path=artifact_path,

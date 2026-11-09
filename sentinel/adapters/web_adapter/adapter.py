@@ -137,16 +137,25 @@ class WebAdapter(TargetAdapter):
             allowed = self.target_config.allowed_hosts if self.target_config else []
             if allowed:
                 is_allowed = (
-                    host in allowed
-                    or (host in ("localhost", "127.0.0.1") and any(h in ("localhost", "127.0.0.1") for h in allowed))
+                    "*" in allowed
+                    or host in allowed
+                    or (host in ("localhost", "127.0.0.1", "::1", "0.0.0.0") and any(h in ("localhost", "127.0.0.1", "::1", "0.0.0.0") for h in allowed))
                 )
-                if not is_allowed:
-                    return Observation(
-                        test_id=test_id,
-                        raw_result={"url": url_to_check, "host": host},
-                        duration_ms=0,
-                        error=f"SECURITY_BLOCK: Host '{host}' is not in configured allowlist {allowed} (R-SAFE-5).",
-                    )
+            else:
+                permitted = {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
+                if self.target_config and self.target_config.base_url:
+                    parsed_base = urlparse(self.target_config.base_url)
+                    if parsed_base.hostname:
+                        permitted.add(parsed_base.hostname)
+                is_allowed = host in permitted
+
+            if not is_allowed:
+                return Observation(
+                    test_id=test_id,
+                    raw_result={"url": url_to_check, "host": host},
+                    duration_ms=0,
+                    error=f"SECURITY_BLOCK: Host '{host}' is not in configured allowlist {allowed} (R-SAFE-5).",
+                )
 
         try:
             page = self._ensure_browser()
@@ -162,15 +171,26 @@ class WebAdapter(TargetAdapter):
             elif page_action in ("click", "tap", "fill", "type", "input", "press", "key"):
                 try:
                     if page_action in ("click", "tap"):
-                        page.click(target_path, timeout=timeout_ms)
+                        if target_path.startswith("coords(") and target_path.endswith(")"):
+                            coord_str = target_path[7:-1]
+                            cx, cy = coord_str.split(",")
+                            page.mouse.click(float(cx.strip()), float(cy.strip()))
+                        else:
+                            page.click(target_path, timeout=timeout_ms)
                         status_code = 200
                     elif page_action in ("fill", "type", "input"):
                         text_to_fill = str(action.body if action.body is not None else action.params.get("text", ""))
-                        page.fill(target_path, text_to_fill, timeout=timeout_ms)
+                        if not target_path or target_path in ("body", "active", "focus"):
+                            page.keyboard.type(text_to_fill)
+                        else:
+                            page.fill(target_path, text_to_fill, timeout=timeout_ms)
                         status_code = 200
                     elif page_action in ("press", "key"):
-                        key = str(action.params.get("key", "Enter"))
-                        page.press(target_path or "body", key, timeout=timeout_ms)
+                        key = str(action.body if action.body else action.params.get("key", "Enter"))
+                        if not target_path or target_path in ("body", ""):
+                            page.keyboard.press(key)
+                        else:
+                            page.press(target_path, key, timeout=timeout_ms)
                         status_code = 200
                 except Exception as action_exc:
                     # Attempt self-healing via accessibility tree & LLM (P3 item 13)
@@ -228,7 +248,13 @@ class WebAdapter(TargetAdapter):
                 status_code = 200
 
             else:
-                status_code = 200
+                elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+                return Observation(
+                    test_id=test_id,
+                    raw_result={"action": page_action, "status_code": 400},
+                    duration_ms=elapsed_ms,
+                    error=f"UNSUPPORTED_WEB_ACTION: Action '{page_action}' is not supported by WebAdapter.",
+                )
 
             # Capture screenshot artifact
             screenshot_dir = Path("artifacts") / "screenshots"

@@ -8,7 +8,7 @@ Adheres to:
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from sentinel.core.config import TargetConfig
 from sentinel.core.schemas import Artifact, Observation, TargetModel, TestStep
@@ -46,7 +46,7 @@ def register_adapter(target_type: str, adapter_cls: type[TargetAdapter]) -> None
     _ADAPTER_REGISTRY[target_type.lower()] = adapter_cls
 
 
-def get_adapter(target_type: str) -> TargetAdapter:
+def get_adapter(target_type: str, *args: Any, **kwargs: Any) -> TargetAdapter:
     """Retrieve an instantiated adapter for the specified target type."""
     target_key = target_type.lower()
     if target_key not in _ADAPTER_REGISTRY:
@@ -54,4 +54,19 @@ def get_adapter(target_type: str) -> TargetAdapter:
         raise ValueError(
             f"No adapter registered for target type '{target_type}'. Available adapters: {available}"
         )
-    return _ADAPTER_REGISTRY[target_key]()
+    adapter_cls = _ADAPTER_REGISTRY[target_key]
+    try:
+        return adapter_cls(*args, **kwargs)
+    except TypeError:
+        return adapter_cls()
+
+
+def get_adapter_class(target_type: str) -> type[TargetAdapter]:
+    """Retrieve the uninstantiated adapter class for the specified target type."""
+    target_key = target_type.lower()
+    if target_key not in _ADAPTER_REGISTRY:
+        available = list(_ADAPTER_REGISTRY.keys())
+        raise ValueError(
+            f"No adapter registered for target type '{target_type}'. Available adapters: {available}"
+        )
+    return _ADAPTER_REGISTRY[target_key]

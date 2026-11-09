@@ -42,3 +42,5 @@ artifacts/
 *.sqlite
 *.db
 .sentinel/
+*.spec
+*.exe

@@ -24,7 +24,7 @@ class RedactionFilter:
         "OPENAI_API_KEY": re.compile(r"\bsk-[A-Za-z0-9]{20,}\b"),
         "GITHUB_TOKEN": re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b"),
         "GENERIC_SECRET_KEY": re.compile(
-            r'(?i)(["\']?(?:api[_-]?key|secret|password|passwd|auth[_-]?token|access[_-]?token)["\']?\s*[:=]\s*["\'])([^"\']+)(["\'])'
+            r'(?i)(["\']?(?:api[_-]?key|secret|password|passwd|auth[_-]?token|access[_-]?token)["\']?\s*[:=]\s*["\']?)([^"\'\s,;]+)(["\']?)'
         ),
         "CREDIT_CARD": re.compile(r"\b(?:\d{4}[ -]?){3}\d{4}\b"),
         "EMAIL": re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"),
@@ -68,12 +68,21 @@ class RedactionFilter:
 
         return redacted
 
-    def redact(self, obj: Any) -> Any:
-        """Recursively redact strings, dictionaries, lists, or pydantic models."""
+    def redact(self, obj: Any, visited: set[int] | None = None) -> Any:
+        """Recursively redact strings, dictionaries, lists, sets, or pydantic models."""
         if obj is None:
             return None
         if isinstance(obj, str):
             return self.redact_text(obj)
+
+        if visited is None:
+            visited = set()
+        obj_id = id(obj)
+        if obj_id in visited:
+            return "[REDACTED:CIRCULAR_REF]"
+        if isinstance(obj, (dict, list, tuple, set)) or hasattr(obj, "model_dump"):
+            visited.add(obj_id)
+
         if isinstance(obj, dict):
             clean_dict: dict[str, Any] = {}
             for k, v in obj.items():
@@ -81,15 +90,17 @@ class RedactionFilter:
                 if isinstance(k, str) and re.search(r"(?i)password|passwd|secret|api[_-]?key|token", k):
                     clean_dict[k] = "[REDACTED:SENSITIVE_KEY]"
                 else:
-                    clean_dict[k] = self.redact(v)
+                    clean_dict[k] = self.redact(v, visited)
             return clean_dict
         if isinstance(obj, list):
-            return [self.redact(item) for item in obj]
+            return [self.redact(item, visited) for item in obj]
         if isinstance(obj, tuple):
-            return tuple(self.redact(item) for item in obj)
+            return tuple(self.redact(item, visited) for item in obj)
+        if isinstance(obj, set):
+            return {self.redact(item, visited) for item in obj}
         if hasattr(obj, "model_dump"):
             dumped = obj.model_dump()
-            return self.redact(dumped)
+            return self.redact(dumped, visited)
         return obj
 
 

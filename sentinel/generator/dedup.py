@@ -7,6 +7,7 @@ Adheres to:
 from __future__ import annotations
 
 import hashlib
+import json
 
 from sentinel.core.logging import logger
 from sentinel.core.schemas import TestCase
@@ -20,7 +21,10 @@ class TestDeduplicator:
         """Compute structural fingerprint of test case."""
         step_signatures = []
         for s in tc.steps:
-            step_signatures.append(f"{s.action}:{s.method}:{s.path}:{sorted(list(s.params.keys()))}")
+            body_str = json.dumps(s.body, sort_keys=True, default=str) if s.body is not None else ""
+            params_sig = sorted(list((k, str(v)) for k, v in s.params.items()))
+            headers_sig = sorted(list((k, str(v)) for k, v in s.headers.items()))
+            step_signatures.append(f"{s.action}:{s.method}:{s.path}:{params_sig}:{headers_sig}:{body_str}")
 
         assertions_sig = sorted(tc.expected.assertions)
         combined = f"{tc.target_type}|{'|'.join(step_signatures)}|{'|'.join(assertions_sig)}"

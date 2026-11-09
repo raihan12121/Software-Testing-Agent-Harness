@@ -9,7 +9,9 @@ Adheres to:
 
 from __future__ import annotations
 
+import json
 import time
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -62,10 +64,12 @@ class APIAdapter(TargetAdapter):
 
         # 1. Build and resolve URL path parameters
         raw_path = action.path or "/"
-        if not raw_path.startswith("/"):
-            raw_path = "/" + raw_path
-
-        url = f"{base_url}{raw_path}"
+        if raw_path.startswith("http://") or raw_path.startswith("https://"):
+            url = raw_path
+        else:
+            if not raw_path.startswith("/"):
+                raw_path = "/" + raw_path
+            url = f"{base_url}{raw_path}"
 
         # Resolve path parameters {id} from action.params
         query_params: dict[str, Any] = {}
@@ -84,16 +88,24 @@ class APIAdapter(TargetAdapter):
         if allowed_hosts:
             is_allowed = (
                 host in allowed_hosts
-                or (host in ("localhost", "127.0.0.1", "::1") and any(h in ("localhost", "127.0.0.1") for h in allowed_hosts))
+                or (host in ("localhost", "127.0.0.1", "::1", "0.0.0.0") and any(h in ("localhost", "127.0.0.1", "::1", "0.0.0.0") for h in allowed_hosts))
             )
-            if not is_allowed:
-                logger.warning(f"BLOCKED: Attempted to contact unlisted host '{host}' (R-SAFE-5).")
-                return Observation(
-                    test_id=test_id,
-                    raw_result={"url": url, "host": host},
-                    duration_ms=0,
-                    error=f"SECURITY_BLOCK: Host '{host}' is not in configured allowlist {allowed_hosts} (R-SAFE-5).",
-                )
+        else:
+            permitted = {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
+            if self.target_config and self.target_config.base_url:
+                parsed_base = urlparse(self.target_config.base_url)
+                if parsed_base.hostname:
+                    permitted.add(parsed_base.hostname)
+            is_allowed = host in permitted
+
+        if not is_allowed:
+            logger.warning(f"BLOCKED: Attempted to contact unlisted host '{host}' (R-SAFE-5).")
+            return Observation(
+                test_id=test_id,
+                raw_result={"url": url, "host": host},
+                duration_ms=0,
+                error=f"SECURITY_BLOCK: Host '{host}' is not in configured allowlist {allowed_hosts} (R-SAFE-5).",
+            )
 
         # 3. Prepare request options
         method = (action.method or "GET").upper()
@@ -138,6 +150,12 @@ class APIAdapter(TargetAdapter):
             artifacts: list[Artifact] = []
             if action.metadata.get("capture_artifacts", False) or resp.status_code >= 400:
                 artifact_path = f"artifacts/{test_id}_response.json"
+                try:
+                    p = Path(artifact_path)
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    p.write_text(json.dumps(raw_result, indent=2, default=str), encoding="utf-8")
+                except Exception as exc:
+                    logger.warning(f"Failed writing API artifact to {artifact_path}: {exc}")
                 artifacts.append(
                     Artifact(
                         path=artifact_path,

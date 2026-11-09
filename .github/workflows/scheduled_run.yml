@@ -11,9 +11,9 @@ on:
         required: true
         default: 'staging'
       target_url:
-        description: 'Target Base URL'
+        description: 'Target Base URL (defaults to sandboxed Demo Shop App if empty)'
         required: false
-        default: 'https://staging.example.com'
+        default: ''
 
 jobs:
   nightly-exploration:
@@ -39,6 +39,19 @@ jobs:
           uv pip install --system -e ".[all,dev]"
           playwright install --with-deps chromium
 
+      - name: Start Sandboxed Demo Shop Web Target
+        run: |
+          TARGET_URL="${{ github.event.inputs.target_url }}"
+          if [ -z "$TARGET_URL" ] || [ "$TARGET_URL" = "https://staging.example.com" ]; then
+            echo "Starting sandboxed Demo Shop application on http://127.0.0.1:8899..."
+            python examples/demo_shop_app.py &
+            sleep 2
+            echo "TARGET_URL=http://127.0.0.1:8899" >> $GITHUB_ENV
+          else
+            echo "Using specified target URL: $TARGET_URL"
+            echo "TARGET_URL=$TARGET_URL" >> $GITHUB_ENV
+          fi
+
       - name: Run Sentinel Explore Mode against Staging
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -47,7 +60,7 @@ jobs:
           sentinel run \
             --explore \
             --target-type web \
-            --base-url "${{ github.event.inputs.target_url || 'https://staging.example.com' }}" \
+            --base-url "$TARGET_URL" \
             --env "${{ github.event.inputs.environment || 'staging' }}" \
             --format json \
             --output-dir reports \

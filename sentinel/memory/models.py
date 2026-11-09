@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS runs (
     fail_count INTEGER,
     flaky_count INTEGER,
     pending_count INTEGER,
+    error_count INTEGER DEFAULT 0,
     user_id TEXT DEFAULT 'default_user',
     team_id TEXT DEFAULT 'default_team'
 );

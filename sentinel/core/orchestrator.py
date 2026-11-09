@@ -41,7 +41,7 @@ class Orchestrator:
     ) -> None:
         self.target_config = target_config
         self.run_config = run_config
-        self.adapter = get_adapter(target_config.target_type)
+        self.adapter = get_adapter(target_config.target_type, target_config=target_config)
         self.executor = Executor(target_config, run_config)
         self.memory = memory_store or MemoryStore()
         self.llm_provider = llm_provider or get_llm_provider()

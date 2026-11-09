@@ -7,6 +7,7 @@ Adheres strictly to:
 
 from __future__ import annotations
 
+import html
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -89,7 +90,7 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         pending = self.store.get_pending_reviews()
         quarantined = self.store.get_quarantined_test_ids()
 
-        html = f"""<!DOCTYPE html>
+        html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -143,13 +144,13 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         <tr><th>Run ID</th><th>Test ID</th><th>Status</th><th>Oracle</th><th>Confidence</th><th>Reasoning</th></tr>
       </thead>
       <tbody>
-        {"".join(f"<tr><td>{r['run_id']}</td><td>{r['test_id']}</td><td><span class='badge badge-pending'>{r['status']}</span></td><td>{r['oracle_used']}</td><td>{r['confidence']}</td><td>{r['reasoning']}</td></tr>" for r in pending) if pending else "<tr><td colspan='6' style='text-align:center; color:#94a3b8;'>No pending reviews in queue. All automated verdicts resolved!</td></tr>"}
+        {"".join(f"<tr><td>{html.escape(str(r.get('run_id', '')))}</td><td>{html.escape(str(r.get('test_id', '')))}</td><td><span class='badge badge-pending'>{html.escape(str(r.get('status', '')))}</span></td><td>{html.escape(str(r.get('oracle_used', '')))}</td><td>{html.escape(str(r.get('confidence', '')))}</td><td>{html.escape(str(r.get('reasoning', '')))}</td></tr>" for r in pending) if pending else "<tr><td colspan='6' style='text-align:center; color:#94a3b8;'>No pending reviews in queue. All automated verdicts resolved!</td></tr>"}
       </tbody>
     </table>
   </div>
 </body>
 </html>"""
-        content = html.encode("utf-8")
+        content = html_content.encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(content)))

@@ -71,15 +71,16 @@ class DatabaseAdapter(TargetAdapter):
 
     def _check_host_allowlist(self, uri: str) -> bool:
         """R-SAFE-5: Verify database host is permitted in allowed_hosts."""
-        if not self.target_config or not self.target_config.allowed_hosts:
-            return True
         host = urlparse(uri).hostname or ""
         if not host:
             return True
-        allowed = self.target_config.allowed_hosts
-        return host in allowed or (
-            host in ("localhost", "127.0.0.1") and any(h in ("localhost", "127.0.0.1") for h in allowed)
-        )
+        allowed = self.target_config.allowed_hosts if self.target_config else []
+        if allowed:
+            return host in allowed or (
+                host in ("localhost", "127.0.0.1", "::1", "0.0.0.0") and any(h in ("localhost", "127.0.0.1", "::1", "0.0.0.0") for h in allowed)
+            )
+        # Default allow loopback only
+        return host in ("localhost", "127.0.0.1", "::1", "0.0.0.0")
 
     def _get_sqlite_connection(self) -> sqlite3.Connection:
         """Establish or return SQLite database connection."""
@@ -217,7 +218,13 @@ class DatabaseAdapter(TargetAdapter):
         """Execute query or statement with transactional rollback isolation (R-EXEC-1)."""
         start_time = time.perf_counter()
         test_id = action.metadata.get("test_id", "TC-DB")
-        backend = self._determine_backend(self.target_config or TargetConfig(target_type="database"))
+        raw_path = action.path or ""
+        if raw_path.startswith("postgresql://") or raw_path.startswith("postgres://"):
+            backend = "postgres"
+        elif raw_path.startswith("mongodb://") or raw_path.startswith("mongodb+srv://"):
+            backend = "mongo"
+        else:
+            backend = self._determine_backend(self.target_config or TargetConfig(target_type="database"))
 
         query_str = str(action.body or action.params.get("query") or action.path or "SELECT 1;").strip()
         is_mutation = any(query_str.upper().startswith(kw) for kw in ("INSERT", "UPDATE", "DELETE", "DROP", "ALTER"))
@@ -264,7 +271,7 @@ class DatabaseAdapter(TargetAdapter):
                     self._active_transaction = False
 
         elif backend == "postgres":
-            uri = self.target_config.base_url if self.target_config else "postgresql://localhost:5432/testdb"
+            uri = action.metadata.get("uri") or (raw_path if (raw_path.startswith("postgresql://") or raw_path.startswith("postgres://")) else None) or (self.target_config.base_url if self.target_config else "postgresql://localhost:5432/testdb")
             if not self._check_host_allowlist(uri):
                 return Observation(
                     test_id=test_id,

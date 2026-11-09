@@ -194,7 +194,7 @@ class HTMLReporter(Reporter):
 
     def __init__(self, redactor=None) -> None:
         self.redactor = redactor or default_redactor
-        self.template = Template(HTML_TEMPLATE)
+        self.template = Template(HTML_TEMPLATE, autoescape=True)
 
     def generate_report(self, report: Report, output_dir: Path) -> Path:
         """Render and save HTML report dashboard."""

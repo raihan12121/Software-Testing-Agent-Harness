@@ -9,8 +9,10 @@ Adheres strictly to:
 
 from __future__ import annotations
 
+import json
 import statistics
 import time
+from pathlib import Path
 from typing import Any
 
 from sentinel.adapters.base import TargetAdapter, register_adapter
@@ -89,8 +91,16 @@ class PerformanceAdapter(TargetAdapter):
         }
 
         # Generate performance artifact
+        artifact_path = f"artifacts/perf_{test_id}.json"
+        try:
+            p = Path(artifact_path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(json.dumps(self._last_metrics, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
         artifact = Artifact(
-            path=f"artifacts/perf_{test_id}.json",
+            path=artifact_path,
             mime_type="application/json",
             description=f"Performance metrics for {target_path} (RPS: {rps}, p95: {p95}ms)",
             metadata=dict(self._last_metrics),

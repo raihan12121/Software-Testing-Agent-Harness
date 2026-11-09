@@ -99,3 +99,57 @@ def test_explore_mode_web_app_validation(tmp_path):
         server.shutdown()
         server.server_close()
 
+
+def test_explore_mode_cli_execution_staging(tmp_path):
+    """Regression test: verify CLI sentinel run --explore executes cleanly without TypeError."""
+    import argparse
+
+    from examples.demo_shop_app import run_server
+    from sentinel.cli import cmd_run
+
+    server = run_server(8897)
+    base_url = "http://127.0.0.1:8897"
+
+    try:
+        args = argparse.Namespace(
+            config="non_existent_config.yaml",
+            env="staging",
+            run_id="cli-explore-test",
+            project="explore-cli-validation",
+            target_type="web",
+            target="demo-shop-cli",
+            base_url=base_url,
+            allow_mutations=True,
+            yes_i_know_prod=False,
+            parallelism=1,
+            timeout=10.0,
+            output_dir=str(tmp_path / "reports"),
+            explore=True,
+            test_file=None,
+            format="json",
+            llm_provider="auto",
+        )
+
+        exit_code = cmd_run(args)
+        assert exit_code == 0
+        assert (tmp_path / "reports" / "report_cli-explore-test.json").exists()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_get_adapter_and_get_adapter_class():
+    """Verify get_adapter returns instantiated adapter and get_adapter_class returns class."""
+    from sentinel.adapters.base import TargetAdapter, get_adapter, get_adapter_class
+    from sentinel.adapters.web_adapter.adapter import WebAdapter
+    from sentinel.core.config import TargetConfig
+
+    cls = get_adapter_class("web")
+    assert cls is WebAdapter
+
+    # Instantiation via get_adapter with optional args
+    tc = TargetConfig(target_type="web", base_url="http://localhost:8897")
+    inst = get_adapter("web", target_config=tc)
+    assert isinstance(inst, WebAdapter)
+    assert isinstance(inst, TargetAdapter)
+

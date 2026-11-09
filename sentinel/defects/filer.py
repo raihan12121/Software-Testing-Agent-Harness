@@ -27,7 +27,8 @@ class DefectFiler:
     @staticmethod
     def generate_fingerprint(verdict: Verdict) -> str:
         """Compute stable hash of failure reason and assertion to deduplicate defects."""
-        seed = f"{verdict.test_id}:{verdict.status}:{verdict.reasoning[:120]}"
+        clean_reason = (verdict.reasoning or "")[:120]
+        seed = f"{verdict.test_id}:{verdict.status}:{clean_reason}"
         return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:16]
 
     def format_defect_body(
@@ -110,7 +111,17 @@ class DefectFiler:
                 issue_url = f"https://github.com/mock-org/repo/issues/{defect_num}"
 
             # Persist in SQLite memory store (memory.md §3)
-            module_name = test_case.source_context.split("://")[-1].split("/")[0] if test_case.source_context else "general"
+            if test_case.source_context:
+                ctx = test_case.source_context.split("://")[-1]
+                if "#" in ctx:
+                    parts = [p.replace("~1", "/") for p in ctx.split("#") if p]
+                    module_name = parts[-1].strip("/").split("/")[0] if len(parts) > 1 else parts[0].split(".")[0]
+                else:
+                    module_name = ctx.split("/")[0].split(".")[0]
+            else:
+                module_name = "general"
+
+            defect_severity = test_case.priority or "high"
             conn.execute(
                 """
                 INSERT INTO defects (
@@ -122,7 +133,7 @@ class DefectFiler:
                     defect_record_id,
                     report.project_id,
                     title,
-                    "high",
+                    defect_severity,
                     json.dumps(["auto_detected", test_case.target_type]),
                     json.dumps([test_case.id]),
                     issue_url,

@@ -48,12 +48,20 @@ class IoTAdapter(TargetAdapter):
 
     def _check_host_allowlist(self, broker_host: str) -> bool:
         """R-SAFE-5: Ensure broker host is in configured allowed_hosts."""
-        if not self.target_config or not self.target_config.allowed_hosts:
+        if not broker_host:
             return True
-        allowed = self.target_config.allowed_hosts
-        return broker_host in allowed or (
-            broker_host in ("localhost", "127.0.0.1") and any(h in ("localhost", "127.0.0.1") for h in allowed)
-        )
+        allowed = self.target_config.allowed_hosts if self.target_config else []
+        if allowed:
+            return broker_host in allowed or (
+                broker_host in ("localhost", "127.0.0.1", "::1", "0.0.0.0") and any(h in ("localhost", "127.0.0.1", "::1", "0.0.0.0") for h in allowed)
+            )
+        # Default allow loopback only or target base_url host
+        permitted = {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
+        if self.target_config and self.target_config.base_url:
+            parsed_base = urlparse(self.target_config.base_url)
+            if parsed_base.hostname:
+                permitted.add(parsed_base.hostname)
+        return broker_host in permitted
 
     def _check_device_allowlist(self, port_or_device: str) -> bool:
         """R-SAFE-5: Ensure serial port or hardware device is in configured allowlist."""
@@ -117,9 +125,17 @@ class IoTAdapter(TargetAdapter):
         topic_or_port = action.path or "sensors/temperature"
 
         # R-SAFE-5: Allow-list validation
-        if topic_or_port.startswith("mqtt://") or action_name in ("publish", "pub", "subscribe", "sub"):
-            broker_url = self.target_config.base_url if self.target_config else None
-            broker_host = urlparse(broker_url).hostname or "127.0.0.1" if broker_url else "127.0.0.1"
+        if topic_or_port.startswith("mqtt://") or action_name in ("publish", "pub", "subscribe", "sub", "mqtt_connect"):
+            broker_url = action.metadata.get("broker") or (self.target_config.base_url if self.target_config else None)
+            if topic_or_port.startswith("mqtt://"):
+                broker_host = urlparse(topic_or_port).hostname or "127.0.0.1"
+            elif broker_url:
+                broker_host = urlparse(broker_url).hostname or broker_url
+            elif action_name == "mqtt_connect" and topic_or_port:
+                broker_host = urlparse(f"mqtt://{topic_or_port}").hostname or topic_or_port
+            else:
+                broker_host = "127.0.0.1"
+
             if not self._check_host_allowlist(broker_host):
                 return Observation(
                     test_id=test_id,

@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atrocious Studio — Autonomous & Interactive QA Desktop</title>
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --panel-bg: #0f172a;
+      --card-bg: #1e293b;
+      --border-color: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-blue: #38bdf8;
+      --accent-green: #22c55e;
+      --accent-red: #ef4444;
+      --accent-amber: #f59e0b;
+      --accent-purple: #a855f7;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-main);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Header */
+    header {
+      background: var(--panel-bg);
+      border-bottom: 1px solid var(--border-color);
+      height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1rem;
+      flex-shrink: 0;
+      gap: 1rem;
+    }
+    .logo-group { display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0; }
+    .logo-badge {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      color: white;
+      font-weight: 800;
+      font-size: 0.85rem;
+      padding: 4px 10px;
+      border-radius: 6px;
+      letter-spacing: 0.05em;
+    }
+    .app-title { font-size: 0.95rem; font-weight: 700; color: #f1f5f9; }
+    .connection-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      background: rgba(34, 197, 94, 0.12);
+      color: var(--accent-green);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+    .connection-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-green); }
+
+    .control-bar { display: flex; align-items: center; gap: 0.6rem; flex: 1; justify-content: flex-end; }
+    .select-mode {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .input-goal {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.825rem;
+      flex: 1;
+      max-width: 440px;
+    }
+    .input-goal:focus { outline: none; border-color: var(--accent-blue); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .btn-sm { padding: 4px 8px; font-size: 0.72rem; }
+    .btn-xs { padding: 2px 6px; font-size: 0.68rem; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-success { background: #16a34a; color: white; }
+    .btn-success:hover { background: #15803d; }
+    .btn-warning { background: #d97706; color: white; }
+    .btn-danger { background: #dc2626; color: white; }
+    .btn-outline { background: transparent; border: 1px solid var(--border-color); color: var(--text-main); }
+    .btn-outline:hover { background: var(--card-bg); }
+
+    /* Studio Grid Layout */
+    .studio-grid {
+      display: grid;
+      grid-template-columns: 260px 1fr 350px;
+      grid-template-rows: 1fr 240px;
+      flex: 1;
+      overflow: hidden;
+      background: #020617;
+      gap: 1px;
+    }
+
+    /* Left Sidebar: Targets & Steps */
+    .panel-explorer {
+      grid-row: 1 / 3;
+      background: var(--panel-bg);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 0.65rem 0.9rem;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.8);
+    }
+    .target-list, .step-list { list-style: none; overflow-y: auto; flex: 1; padding: 0.5rem; }
+    .target-item {
+      padding: 8px 10px;
+      margin-bottom: 4px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      background: rgba(30, 41, 59, 0.4);
+      border: 1px solid transparent;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .target-item:hover, .target-item.active { background: var(--card-bg); border-color: var(--accent-blue); }
+    .target-name { font-weight: 600; color: #f8fafc; }
+    .target-meta { font-size: 0.7rem; color: var(--text-muted); }
+
+    /* Center: Viewport & Interactive Tools */
+    .panel-viewport {
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+    .viewport-nav-bar {
+      background: var(--panel-bg);
+      border-bottom: 1px solid var(--border-color);
+      padding: 6px 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .url-input {
+      flex: 1;
+      background: var(--bg-dark);
+      border: 1px solid var(--border-color);
+      padding: 5px 10px;
+      border-radius: 4px;
+      color: #38bdf8;
+      font-family: 'Consolas', monospace;
+      font-size: 0.8rem;
+    }
+    .url-input:focus { outline: none; border-color: var(--accent-blue); }
+
+    .manual-actions-bar {
+      background: #090d16;
+      border-bottom: 1px solid var(--border-color);
+      padding: 5px 10px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      overflow-x: auto;
+      font-size: 0.75rem;
+    }
+    .action-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      border-right: 1px solid #1e293b;
+      padding-right: 10px;
+    }
+    .action-group:last-child { border-right: none; }
+    .action-label { color: var(--text-muted); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
+    .input-mini {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      color: white;
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+    }
+    .input-mini:focus { outline: none; border-color: var(--accent-blue); }
+
+    .canvas-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      background: #020617;
+      overflow: auto;
+    }
+    #viewport-canvas {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      cursor: crosshair;
+      border: 1px solid #1e293b;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    }
+
+    /* Right: Agent Thought Stream & Co-Pilot Gate */
+    .panel-agent {
+      background: var(--panel-bg);
+      border-left: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .thought-stream {
+      flex: 1;
+      padding: 0.75rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-size: 0.8rem;
+    }
+    .thought-card {
+      background: var(--card-bg);
+      border-left: 3px solid var(--accent-blue);
+      border-radius: 0 6px 6px 0;
+      padding: 8px 10px;
+      line-height: 1.4;
+    }
+    .thought-card.copilot-gate {
+      border-left: 4px solid var(--accent-amber);
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-left-width: 4px;
+    }
+    .thought-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .thought-body { color: #e2e8f0; }
+
+    /* Bottom: Inspector Dock */
+    .panel-inspector {
+      grid-column: 2 / 4;
+      background: var(--panel-bg);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .tabs-header {
+      display: flex;
+      border-bottom: 1px solid var(--border-color);
+      background: #090d16;
+    }
+    .tab-btn {
+      padding: 7px 14px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+    .tab-btn.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); background: var(--panel-bg); }
+    .tab-content { flex: 1; overflow: auto; padding: 0.6rem; font-family: 'Consolas', monospace; font-size: 0.75rem; }
+
+    /* Table styles */
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid #1e293b; }
+    th { color: var(--text-muted); font-size: 0.7rem; text-transform: uppercase; }
+    .pill { display: inline-block; padding: 1px 6px; border-radius: 4px; font-weight: bold; font-size: 0.68rem; }
+    .pill-green { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+    .pill-red { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+    .pill-blue { background: rgba(56, 189, 248, 0.2); color: #38bdf8; }
+    .pill-amber { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+
+    /* Modal */
+    .modal-backdrop {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center; z-index: 1000;
+    }
+    .modal {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      width: 520px;
+      border-radius: 8px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+      overflow: hidden;
+    }
+    .modal-header { padding: 0.9rem 1.25rem; border-bottom: 1px solid var(--border-color); font-weight: 700; font-size: 0.95rem; display: flex; justify-content: space-between; }
+    .modal-body { padding: 1.25rem; display: flex; flex-direction: column; gap: 12px; }
+    .field-group { display: flex; flex-direction: column; gap: 4px; }
+    .field-label { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); }
+    .field-row { display: flex; gap: 8px; }
+    .field-input {
+      flex: 1; background: var(--card-bg); border: 1px solid var(--border-color);
+      color: white; padding: 7px 10px; border-radius: 5px; font-size: 0.78rem;
+    }
+    .field-input:focus { outline: none; border-color: var(--accent-blue); }
+    .modal-footer { padding: 0.75rem 1.25rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 8px; background: #090d16; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation & Control Bar -->
+  <header>
+    <div class="logo-group">
+      <div class="logo-badge">ATROCIOUS</div>
+      <div class="app-title">QA Studio</div>
+      <div class="connection-badge"><span class="connection-dot"></span> Live Daemon</div>
+    </div>
+
+    <div class="control-bar">
+      <select id="agent-mode" class="select-mode">
+        <option value="autonomous">🤖 Autonomous Mode</option>
+        <option value="copilot">🤝 Co-Pilot Mode (Approval Gate)</option>
+      </select>
+      <input type="text" id="agent-goal" class="input-goal" value="Explore web app, test form validations, and probe for defects." placeholder="Define testing goal or user journey...">
+      <button id="btn-start" class="btn btn-success" onclick="startAutonomousSession()">▶ Run Agent</button>
+      <button id="btn-pause" class="btn btn-warning" onclick="pauseSession()">⏸ Pause</button>
+      <button id="btn-stop" class="btn btn-danger" onclick="stopSession()">⏹ Stop</button>
+      <button class="btn btn-outline" onclick="openKeyVault()">🔑 Settings & Keys</button>
+    </div>
+  </header>
+
+  <!-- Studio Grid -->
+  <div class="studio-grid">
+
+    <!-- 1. Left Explorer -->
+    <div class="panel-explorer">
+      <div class="panel-header">
+        <span>Discovered Targets</span>
+        <button class="btn btn-outline btn-xs" onclick="loadTargets()">↻</button>
+      </div>
+      <ul id="target-list" class="target-list">
+        <li class="target-item active">
+          <span class="target-name">Web Application</span>
+          <span class="target-meta">http://localhost:8899</span>
+        </li>
+      </ul>
+
+      <div class="panel-header">Recorded Actions (<span id="recorded-count">0</span>)</div>
+      <ul id="step-timeline" class="step-list">
+        <li style="color:var(--text-muted); font-size:0.75rem; padding:6px;">No actions recorded yet. Navigate or run agent.</li>
+      </ul>
+    </div>
+
+    <!-- 2. Center Viewport -->
+    <div class="panel-viewport">
+      <!-- Address Bar -->
+      <div class="viewport-nav-bar">
+        <input type="text" id="url-input" class="url-input" value="http://localhost:8899" placeholder="Enter URL (e.g. http://localhost:8899) and hit Go..." onkeydown="if(event.key==='Enter') navigateToUrl()" />
+        <button class="btn btn-primary btn-sm" onclick="navigateToUrl()">Go ➔</button>
+        <button class="btn btn-outline btn-sm" onclick="refreshViewport()" title="Reload viewport and badges">↻</button>
+      </div>
+
+      <!-- Quick Manual Action Toolbar -->
+      <div class="manual-actions-bar">
+        <div class="action-group">
+          <span class="action-label">Badge:</span>
+          <input type="number" id="manual-badge" class="input-mini" placeholder="#" style="width:48px;" min="1" max="999" />
+          <button class="btn btn-outline btn-xs" onclick="manualClickBadge()">Click</button>
+        </div>
+
+        <div class="action-group">
+          <span class="action-label">Type:</span>
+          <input type="text" id="manual-text" class="input-mini" placeholder="Text to fill..." style="width:130px;" onkeydown="if(event.key==='Enter') manualTypeText()" />
+          <button class="btn btn-outline btn-xs" onclick="manualTypeText()">Type</button>
+        </div>
+
+        <div class="action-group">
+          <span class="action-label">Key:</span>
+          <button class="btn btn-outline btn-xs" onclick="manualPressKey('Enter')">Enter</button>
+          <button class="btn btn-outline btn-xs" onclick="manualPressKey('Tab')">Tab</button>
+          <button class="btn btn-outline btn-xs" onclick="manualPressKey('Escape')">Esc</button>
+        </div>
+
+        <div class="action-group">
+          <span class="action-label">Assert:</span>
+          <input type="text" id="manual-assert" class="input-mini" placeholder="Expected text..." style="width:130px;" onkeydown="if(event.key==='Enter') manualAddAssertion()" />
+          <button class="btn btn-outline btn-xs" onclick="manualAddAssertion()">Assert</button>
+        </div>
+      </div>
+
+      <!-- Viewport Canvas -->
+      <div class="canvas-container" id="canvas-container">
+        <img id="viewport-canvas" src="" alt="Live Application Viewport" onclick="handleCanvasClick(event)" />
+      </div>
+    </div>
+
+    <!-- 3. Right Agent Thought Stream -->
+    <div class="panel-agent">
+      <div class="panel-header">
+        <span>Agent Thought Stream</span>
+        <span id="agent-status" class="pill pill-blue">IDLE</span>
+      </div>
+      <div id="thought-stream" class="thought-stream">
+        <div class="thought-card">
+          <div class="thought-title"><span>System Ready</span><span>00:00</span></div>
+          <div class="thought-body">Atrocious Studio daemon active. Enter a URL above, click badges on the canvas, or click <b>Run Agent</b> to begin exploration.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Bottom Dock Inspector -->
+    <div class="panel-inspector">
+      <div class="tabs-header">
+        <button class="tab-btn active" onclick="switchTab('tab-network')">Network Waterfall (<span id="net-count">0</span>)</button>
+        <button class="tab-btn" onclick="switchTab('tab-elements')">Inspected Elements (<span id="el-count">0</span>)</button>
+        <button class="tab-btn" onclick="switchTab('tab-code')">Recorded CI/CD Suite</button>
+        <button class="tab-btn" onclick="switchTab('tab-console')">Console Logs</button>
+      </div>
+
+      <div id="tab-network" class="tab-content" style="display:block;">
+        <table>
+          <thead>
+            <tr><th>Status</th><th>Action</th><th>Target / URL</th><th>Type</th><th>Duration</th></tr>
+          </thead>
+          <tbody id="network-table-body">
+            <tr><td colspan="5" style="color:var(--text-muted); text-align:center;">No network events captured yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="tab-elements" class="tab-content" style="display:none;">
+        <table>
+          <thead>
+            <tr><th>Badge</th><th>Tag</th><th>Role</th><th>Text / Value</th><th>Selector</th><th>Action</th></tr>
+          </thead>
+          <tbody id="elements-table-body">
+            <tr><td colspan="6" style="color:var(--text-muted); text-align:center;">No interactive elements extracted yet. Navigate to a target.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="tab-code" class="tab-content" style="display:none;">
+        <div style="margin-bottom:8px; display:flex; gap:8px;">
+          <button class="btn btn-primary btn-sm" onclick="exportCode('yaml')">Download YAML Spec</button>
+          <button class="btn btn-outline btn-sm" onclick="exportCode('python')">Download Playwright Script</button>
+        </div>
+        <pre id="code-preview" style="background:#020617; padding:10px; border-radius:6px; color:#38bdf8; overflow:auto; max-height:160px;"># Test suite will compile live as actions are performed.</pre>
+      </div>
+
+      <div id="tab-console" class="tab-content" style="display:none;">
+        <div id="console-logs" style="color:#e2e8f0; font-family:monospace; line-height:1.5;">[Atrocious Studio] Runtime initialized. Ready for testing.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Settings & API Key Vault Modal -->
+  <div id="modal-vault" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <span>🔑 API Key & Credentials Vault</span>
+        <span style="cursor:pointer;" onclick="closeKeyVault()">✕</span>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.75rem; color:var(--text-muted);">
+          All keys are encrypted locally via machine-bound storage. Keys are never transmitted in logs, reports, or test artifacts.
+        </p>
+
+        <div class="field-group">
+          <label class="field-label">Anthropic Claude API Key (Computer Use & Reasoning)</label>
+          <div class="field-row">
+            <input type="password" id="key-anthropic" class="field-input" placeholder="sk-ant-...">
+            <button class="btn btn-outline btn-sm" onclick="testKey('anthropic')">Test</button>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">OpenAI API Key (GPT-4o Vision & Reasoning)</label>
+          <div class="field-row">
+            <input type="password" id="key-openai" class="field-input" placeholder="sk-...">
+            <button class="btn btn-outline btn-sm" onclick="testKey('openai')">Test</button>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Google Gemini API Key (Gemini 1.5 Pro / Flash)</label>
+          <div class="field-row">
+            <input type="password" id="key-gemini" class="field-input" placeholder="AIza...">
+            <button class="btn btn-outline btn-sm" onclick="testKey('gemini')">Test</button>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Local Ollama / vLLM URL (Air-gapped Testing)</label>
+          <div class="field-row">
+            <input type="text" id="key-ollama" class="field-input" value="http://localhost:11434">
+            <button class="btn btn-outline btn-sm" onclick="testKey('ollama_url')">Test</button>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">GitHub Token (Automated Bug Filer)</label>
+          <div class="field-row">
+            <input type="password" id="key-github" class="field-input" placeholder="ghp_...">
+            <button class="btn btn-outline btn-sm" onclick="testKey('github_token')">Test</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeKeyVault()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveAllKeys()">Save & Encrypt</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- WebSocket & Real-Time Client ---
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+    let ws = null;
+    let netRequests = [];
+    let recordedActionsCount = 0;
+    let currentElements = [];
+
+    function initWebSocket() {
+      ws = new WebSocket(wsUrl);
+      ws.onopen = () => {
+        logConsole('[Atrocious] Connected to live daemon WebSocket.');
+      };
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          handleDaemonEvent(msg);
+        } catch (e) {
+          console.error('Failed to parse WebSocket message:', e);
+        }
+      };
+      ws.onclose = () => {
+        setTimeout(initWebSocket, 2000);
+      };
+    }
+
+    function logConsole(text) {
+      const consoleBox = document.getElementById('console-logs');
+      const timeStr = new Date().toLocaleTimeString();
+      consoleBox.innerHTML += `<div><span style="color:#64748b;">[${timeStr}]</span> ${text}</div>`;
+      consoleBox.scrollTop = consoleBox.scrollHeight;
+    }
+
+    function handleDaemonEvent(evt) {
+      const type = evt.type;
+      const data = evt.data || {};
+
+      if (type === 'viewport_update') {
+        if (data.screenshot) {
+          document.getElementById('viewport-canvas').src = 'data:image/png;base64,' + data.screenshot;
+        }
+        if (data.url && data.url !== 'about:blank') {
+          document.getElementById('url-input').value = data.url;
+        }
+        if (data.elements) {
+          currentElements = data.elements;
+          renderElementsTable(data.elements);
+        }
+      } else if (type === 'thought_stream') {
+        appendThought(data.status, data.thought || data.message, data.proposed_action);
+      } else if (type === 'copilot_approval_requested') {
+        renderCopilotApprovalCard(data);
+      } else if (type === 'action_dispatched') {
+        document.getElementById('agent-status').innerText = 'EXECUTING';
+        document.getElementById('agent-status').className = 'pill pill-green';
+        appendStepTimeline(data);
+      } else if (type === 'action_completed') {
+        document.getElementById('agent-status').innerText = 'ANALYZING';
+        addNetworkEntry(data);
+        refreshRecordedCode();
+      } else if (type === 'session_started') {
+        document.getElementById('agent-status').innerText = 'RUNNING';
+        document.getElementById('agent-status').className = 'pill pill-green';
+        logConsole(`Session started: ${data.goal}`);
+      } else if (type === 'session_completed' || type === 'session_stopped') {
+        document.getElementById('agent-status').innerText = 'IDLE';
+        document.getElementById('agent-status').className = 'pill pill-blue';
+        refreshRecordedCode();
+        logConsole('Session finished.');
+      }
+    }
+
+    function appendThought(status, thought, action) {
+      const container = document.getElementById('thought-stream');
+      const card = document.createElement('div');
+      card.className = 'thought-card';
+      const timeStr = new Date().toLocaleTimeString();
+
+      let actionText = '';
+      if (action && action.action) {
+        actionText = `<div style="margin-top:5px; font-family:monospace; color:#38bdf8; font-size:0.75rem;">▶ ${action.action.toUpperCase()} Target: ${action.target || 'None'} ${action.value ? `(${action.value})` : ''}</div>`;
+      }
+
+      card.innerHTML = `
+        <div class="thought-title"><span>${status.toUpperCase()}</span><span>${timeStr}</span></div>
+        <div class="thought-body">${thought || ''}</div>
+        ${actionText}
+      `;
+      container.appendChild(card);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function renderCopilotApprovalCard(data) {
+      const container = document.getElementById('thought-stream');
+      const card = document.createElement('div');
+      card.className = 'thought-card copilot-gate';
+      card.id = 'active-copilot-card';
+      const timeStr = new Date().toLocaleTimeString();
+
+      const act = data.proposed_action || {};
+      card.innerHTML = `
+        <div class="thought-title"><span style="color:#f59e0b;">🤝 CO-PILOT APPROVAL REQUIRED</span><span>${timeStr}</span></div>
+        <div class="thought-body" style="margin-bottom:8px;">${data.thought || 'Review proposed action before execution:'}</div>
+        <div style="background:#020617; padding:6px 8px; border-radius:4px; font-family:monospace; font-size:0.75rem; color:#38bdf8; margin-bottom:10px;">
+          Action: <b>${(act.action || 'click').toUpperCase()}</b> | Target: <b>${act.target || 'N/A'}</b> | Value: <b>${act.value || 'None'}</b>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-success btn-xs" onclick="sendCopilotDecision('approve')">✓ Approve & Run</button>
+          <button class="btn btn-warning btn-xs" onclick="sendCopilotDecision('edit')">✎ Edit Action</button>
+          <button class="btn btn-danger btn-xs" onclick="sendCopilotDecision('skip')">✕ Skip</button>
+        </div>
+      `;
+      container.appendChild(card);
+      container.scrollTop = container.scrollHeight;
+      document.getElementById('agent-status').innerText = 'AWAITING APPROVAL';
+      document.getElementById('agent-status').className = 'pill pill-amber';
+    }
+
+    function sendCopilotDecision(decision) {
+      let editedAction = null;
+      if (decision === 'edit') {
+        const customTarget = prompt('Enter badge index or selector to target:', '1');
+        const customValue = prompt('Enter value or text (optional):', '');
+        editedAction = { action: 'click', target: customTarget, value: customValue };
+      }
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'copilot_decision',
+          decision: decision,
+          action: editedAction
+        }));
+      }
+
+      const card = document.getElementById('active-copilot-card');
+      if (card) {
+        card.style.opacity = '0.6';
+        card.removeAttribute('id');
+      }
+    }
+
+    function appendStepTimeline(action) {
+      const timeline = document.getElementById('step-timeline');
+      if (recordedActionsCount === 0) timeline.innerHTML = '';
+      recordedActionsCount++;
+      document.getElementById('recorded-count').innerText = recordedActionsCount;
+
+      const item = document.createElement('li');
+      item.className = 'target-item';
+      item.innerHTML = `
+        <span class="target-name">${action.action_type.toUpperCase()}</span>
+        <span class="target-meta">${action.selector || 'Element #' + action.target_index || action.original_target}</span>
+      `;
+      timeline.appendChild(item);
+      timeline.scrollTop = timeline.scrollHeight;
+    }
+
+    function addNetworkEntry(data) {
+      const tbody = document.getElementById('network-table-body');
+      if (netRequests.length === 0) tbody.innerHTML = '';
+      netRequests.push(data);
+      document.getElementById('net-count').innerText = netRequests.length;
+
+      const row = document.createElement('tr');
+      const statusCode = data.status_code || 200;
+      const pillClass = statusCode >= 400 ? 'pill-red' : 'pill-green';
+      row.innerHTML = `
+        <td><span class="pill ${pillClass}">${statusCode}</span></td>
+        <td><b>${data.action.action_type.toUpperCase()}</b></td>
+        <td>${data.action.selector || data.action.original_target || '/'}</td>
+        <td>DOM Action</td>
+        <td>${data.observation ? data.observation.duration_ms : 0}ms</td>
+      `;
+      tbody.prepend(row);
+    }
+
+    function renderElementsTable(elements) {
+      const tbody = document.getElementById('elements-table-body');
+      document.getElementById('el-count').innerText = elements.length;
+      if (!elements || elements.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted); text-align:center;">No interactive elements extracted.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = '';
+      elements.slice(0, 40).forEach(el => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td><span class="pill pill-blue">#${el.index}</span></td>
+          <td>&lt;${el.tag}&gt;</td>
+          <td>${el.role || '-'}</td>
+          <td style="max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${el.text || '-'}</td>
+          <td style="color:#64748b; font-size:0.7rem; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${el.selector || '-'}</td>
+          <td><button class="btn btn-outline btn-xs" onclick="selectAndClickBadge(${el.index})">Click</button></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function selectAndClickBadge(idx) {
+      document.getElementById('manual-badge').value = idx;
+      manualClickBadge();
+    }
+
+    // --- Interactive Manual Controls ---
+    function navigateToUrl() {
+      const url = document.getElementById('url-input').value;
+      if (!url) return;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'navigate', url: url }));
+        logConsole(`Navigating to ${url}...`);
+      }
+    }
+
+    function refreshViewport() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'refresh_viewport' }));
+        logConsole('Refreshing viewport and Set-of-Marks...');
+      }
+    }
+
+    function manualClickBadge() {
+      const badge = document.getElementById('manual-badge').value;
+      if (!badge) return;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'manual_action',
+          action: { type: 'click', target: parseInt(badge) }
+        }));
+        appendThought('manual_action', `User triggered click on Badge #${badge}`, { action: 'click', target: badge });
+      }
+    }
+
+    function manualTypeText() {
+      const text = document.getElementById('manual-text').value;
+      const badge = document.getElementById('manual-badge').value;
+      if (!text) return;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'manual_action',
+          action: { type: 'fill', text: text, target: badge ? parseInt(badge) : 'active' }
+        }));
+        appendThought('manual_action', `User typed "${text}"`, { action: 'fill', target: badge || 'active', value: text });
+        document.getElementById('manual-text').value = '';
+      }
+    }
+
+    function manualPressKey(key) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'manual_action',
+          action: { type: 'press', key: key }
+        }));
+        appendThought('manual_action', `User pressed [${key}]`, { action: 'press', value: key });
+      }
+    }
+
+    function manualAddAssertion() {
+      const assertion = document.getElementById('manual-assert').value;
+      if (!assertion) return;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'add_assertion',
+          assertion: assertion
+        }));
+        appendThought('assertion', `Added verification checkpoint: "${assertion}"`, { action: 'assert', value: assertion });
+        document.getElementById('manual-assert').value = '';
+      }
+    }
+
+    function handleCanvasClick(e) {
+      const rect = e.target.getBoundingClientRect();
+      const scaleX = e.target.naturalWidth / rect.width;
+      const scaleY = e.target.naturalHeight / rect.height;
+      const x = Math.round((e.clientX - rect.left) * scaleX);
+      const y = Math.round((e.clientY - rect.top) * scaleY);
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'manual_action',
+          action: { type: 'click', x: x, y: y }
+        }));
+        appendThought('manual_action', `User clicked canvas at (${x}, ${y})`, { action: 'click', target: `coords(${x},${y})` });
+      }
+    }
+
+    // --- Session Controls ---
+    async function startAutonomousSession() {
+      const goal = document.getElementById('agent-goal').value;
+      const targetUrl = document.getElementById('url-input').value || 'http://localhost:8899';
+      const mode = document.getElementById('agent-mode').value;
+
+      await fetch('/api/session/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          target_type: 'web',
+          target_url: targetUrl,
+          goal: goal,
+          max_steps: 15,
+          mode: mode
+        })
+      });
+    }
+
+    async function pauseSession() {
+      await fetch('/api/session/pause', { method: 'POST' });
+    }
+
+    async function stopSession() {
+      await fetch('/api/session/stop', { method: 'POST' });
+    }
+
+    async function refreshRecordedCode() {
+      try {
+        const resp = await fetch('/api/session/export?format=yaml');
+        const data = await resp.json();
+        if (data.code) {
+          document.getElementById('code-preview').innerText = data.code;
+        }
+      } catch (e) {}
+    }
+
+    async function exportCode(fmt) {
+      const resp = await fetch(`/api/session/export?format=${fmt}`);
+      const data = await resp.json();
+      const blob = new Blob([data.code], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = fmt === 'yaml' ? 'studio_test_suite.yaml' : 'test_studio_recorded.py';
+      a.click();
+    }
+
+    // --- Targets Discovery ---
+    async function loadTargets() {
+      try {
+        const resp = await fetch('/api/targets');
+        const data = await resp.json();
+        const list = document.getElementById('target-list');
+        list.innerHTML = '';
+        (data.targets || []).forEach(t => {
+          const li = document.createElement('li');
+          li.className = 'target-item';
+          li.onclick = () => {
+            document.querySelectorAll('.target-item').forEach(el => el.classList.remove('active'));
+            li.classList.add('active');
+            if (t.target_path && t.target_path.startsWith('http')) {
+              document.getElementById('url-input').value = t.target_path;
+              navigateToUrl();
+            }
+          };
+          li.innerHTML = `
+            <span class="target-name">${t.name}</span>
+            <span class="target-meta">${t.target_type.toUpperCase()} • ${t.description || t.target_path}</span>
+          `;
+          list.appendChild(li);
+        });
+      } catch (e) {}
+    }
+
+    // --- Key Vault Modal ---
+    function openKeyVault() {
+      document.getElementById('modal-vault').style.display = 'flex';
+      loadKeyStatus();
+    }
+    function closeKeyVault() {
+      document.getElementById('modal-vault').style.display = 'none';
+    }
+
+    async function loadKeyStatus() {
+      const resp = await fetch('/api/vault/status');
+      const data = await resp.json();
+      const status = data.status || {};
+      if (status.anthropic && status.anthropic.configured) {
+        document.getElementById('key-anthropic').placeholder = `Configured (${status.anthropic.preview})`;
+      }
+      if (status.openai && status.openai.configured) {
+        document.getElementById('key-openai').placeholder = `Configured (${status.openai.preview})`;
+      }
+      if (status.gemini && status.gemini.configured) {
+        document.getElementById('key-gemini').placeholder = `Configured (${status.gemini.preview})`;
+      }
+      if (status.github_token && status.github_token.configured) {
+        document.getElementById('key-github').placeholder = `Configured (${status.github_token.preview})`;
+      }
+    }
+
+    async function testKey(provider) {
+      let keyVal = '';
+      if (provider === 'anthropic') keyVal = document.getElementById('key-anthropic').value;
+      if (provider === 'openai') keyVal = document.getElementById('key-openai').value;
+      if (provider === 'gemini') keyVal = document.getElementById('key-gemini').value;
+      if (provider === 'ollama_url') keyVal = document.getElementById('key-ollama').value;
+      if (provider === 'github_token') keyVal = document.getElementById('key-github').value;
+
+      const resp = await fetch('/api/vault/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: provider, key: keyVal })
+      });
+      const res = await resp.json();
+      alert(`[${provider.toUpperCase()}] ${res.message}`);
+    }
+
+    async function saveAllKeys() {
+      const keys = [
+        { prov: 'anthropic', val: document.getElementById('key-anthropic').value },
+        { prov: 'openai', val: document.getElementById('key-openai').value },
+        { prov: 'gemini', val: document.getElementById('key-gemini').value },
+        { prov: 'ollama_url', val: document.getElementById('key-ollama').value },
+        { prov: 'github_token', val: document.getElementById('key-github').value },
+      ];
+      for (const k of keys) {
+        if (k.val) {
+          await fetch('/api/vault/set', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider: k.prov, key: k.val })
+          });
+        }
+      }
+      alert('All credentials encrypted and saved securely!');
+      closeKeyVault();
+    }
+
+    // --- Tab Switcher ---
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById(tabId).style.display = 'block';
+      event.target.classList.add('active');
+    }
+
+    // Boot
+    window.onload = () => {
+      initWebSocket();
+      loadTargets();
+    };
+  </script>
+</body>
+</html>

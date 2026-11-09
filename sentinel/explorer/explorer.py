@@ -82,8 +82,18 @@ class AutonomousExplorer:
                 exploration_idx += 1
 
             elif self.target_config.target_type == "web":
-                # Discover unmapped flows, navigation routes, and interactive subviews
-                sub_routes = ["explore-subview", "cart", "product/1", "checkout"]
+                # Discover unmapped flows, navigation routes, and interactive subviews dynamically from links
+                discovered_links = ep.get("metadata", {}).get("links", [])
+                sub_routes: list[str] = []
+                for link in discovered_links:
+                    clean_link = str(link).strip().lstrip("/")
+                    clean_link = clean_link.split("?")[0]
+                    if clean_link and not clean_link.startswith(("http://", "https://", "#", "javascript:")):
+                        if clean_link not in sub_routes:
+                            sub_routes.append(clean_link)
+                for fallback_route in ("explore-subview", "cart", "product/1", "checkout"):
+                    if fallback_route not in sub_routes:
+                        sub_routes.append(fallback_route)
                 for sub in sub_routes:
                     deep_path = f"{base_path.rstrip('/')}/{sub}" if not base_path.endswith(f"/{sub}") else base_path
                     discovered_cases.append(

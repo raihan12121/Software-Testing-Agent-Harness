@@ -64,6 +64,10 @@ class MemoryStore:
                 conn.execute("ALTER TABLE runs ADD COLUMN team_id TEXT DEFAULT 'default_team'")
             except Exception:
                 pass
+            try:
+                conn.execute("ALTER TABLE runs ADD COLUMN error_count INTEGER DEFAULT 0")
+            except Exception:
+                pass
             conn.commit()
 
     def persist_run(self, report: Report, test_cases: list[TestCase]) -> None:
@@ -79,9 +83,9 @@ class MemoryStore:
                 INSERT OR REPLACE INTO runs (
                     run_id, project_id, target_type, environment,
                     started_at, finished_at, config_snapshot,
-                    pass_count, fail_count, flaky_count, pending_count,
+                    pass_count, fail_count, flaky_count, pending_count, error_count,
                     user_id, team_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     report.run_id,
@@ -95,6 +99,7 @@ class MemoryStore:
                     report.fail_count,
                     report.flaky_count,
                     report.pending_count,
+                    report.error_count,
                     user_id,
                     team_id,
                 ),
@@ -382,7 +387,7 @@ class MemoryStore:
             if project_id and project_id != "all":
                 rows = conn.execute(
                     """
-                    SELECT pass_count, fail_count, flaky_count, pending_count
+                    SELECT pass_count, fail_count, flaky_count, pending_count, COALESCE(error_count, 0) as error_count
                     FROM runs
                     WHERE project_id = ?
                     ORDER BY started_at DESC
@@ -393,7 +398,7 @@ class MemoryStore:
             else:
                 rows = conn.execute(
                     """
-                    SELECT pass_count, fail_count, flaky_count, pending_count
+                    SELECT pass_count, fail_count, flaky_count, pending_count, COALESCE(error_count, 0) as error_count
                     FROM runs
                     ORDER BY started_at DESC
                     LIMIT 50
@@ -401,10 +406,11 @@ class MemoryStore:
                 ).fetchall()
 
             total_runs = len(rows)
-            total_pass = sum(r["pass_count"] for r in rows)
-            total_fail = sum(r["fail_count"] for r in rows)
-            total_flaky = sum(r["flaky_count"] for r in rows)
-            total_tests = total_pass + total_fail + total_flaky
+            total_pass = sum(r["pass_count"] or 0 for r in rows)
+            total_fail = sum(r["fail_count"] or 0 for r in rows)
+            total_flaky = sum(r["flaky_count"] or 0 for r in rows)
+            total_error = sum(r["error_count"] or 0 for r in rows)
+            total_tests = total_pass + total_fail + total_flaky + total_error
             pass_rate = round(total_pass / total_tests, 4) if total_tests > 0 else 1.0
 
             quarantined_count = conn.execute(
@@ -418,6 +424,7 @@ class MemoryStore:
                 "total_pass": total_pass,
                 "total_fail": total_fail,
                 "total_flaky": total_flaky,
+                "total_error": total_error,
                 "pass_rate": pass_rate,
                 "quarantined_count": quarantined_count,
             }

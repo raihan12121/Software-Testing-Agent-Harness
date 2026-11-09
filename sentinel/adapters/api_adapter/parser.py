@@ -45,14 +45,17 @@ class OpenAPIParser:
         return "http://localhost:8000"
 
     def _resolve_ref(self, ref: str) -> dict[str, Any]:
-        """Resolve internal $ref like #/components/schemas/Pet."""
+        """Resolve internal $ref like #/components/schemas/Pet (supports RFC 6901 ~1 and ~0)."""
         if not ref.startswith("#/"):
             return {}
-        parts = ref.lstrip("#/").split("/")
+        raw_parts = ref.lstrip("#/").split("/")
+        parts = [p.replace("~1", "/").replace("~0", "~") for p in raw_parts]
         curr = self.spec
         for p in parts:
             if isinstance(curr, dict) and p in curr:
                 curr = curr[p]
+            elif isinstance(curr, list) and p.isdigit() and int(p) < len(curr):
+                curr = curr[int(p)]
             else:
                 return {}
         return curr if isinstance(curr, dict) else {}
@@ -97,12 +100,23 @@ class OpenAPIParser:
                 description = operation.get("description", "")
                 tags = operation.get("tags", [])
 
-                # Extract parameters
-                params_list = operation.get("parameters", [])
+                # Extract parameters: merge path-level and operation-level
+                path_params = path_item.get("parameters", []) if isinstance(path_item.get("parameters"), list) else []
+                op_params = operation.get("parameters", []) if isinstance(operation.get("parameters"), list) else []
+                merged_params: dict[tuple[str, str], dict[str, Any]] = {}
+                for p in path_params:
+                    if isinstance(p, dict):
+                        if "$ref" in p:
+                            p = self._resolve_ref(p["$ref"])
+                        merged_params[(p.get("name", ""), p.get("in", ""))] = p
+                for p in op_params:
+                    if isinstance(p, dict):
+                        if "$ref" in p:
+                            p = self._resolve_ref(p["$ref"])
+                        merged_params[(p.get("name", ""), p.get("in", ""))] = p
+
                 parsed_params: list[dict[str, Any]] = []
-                for param in params_list:
-                    if "$ref" in param:
-                        param = self._resolve_ref(param["$ref"])
+                for param in merged_params.values():
                     param_schema = self._dereference_schema(param.get("schema", {}))
                     parsed_params.append({
                         "name": param.get("name"),

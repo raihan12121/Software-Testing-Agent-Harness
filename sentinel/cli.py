@@ -25,6 +25,30 @@ from sentinel.core.schemas import TestCase
 console = Console()
 
 
+def print_report_summary(report: Report, custom_console: Console | None = None) -> None:
+    """Display results summary table for a Sentinel run report."""
+    target_console = custom_console or console
+    table = Table(title=f"Sentinel Run Summary: {report.run_id}")
+    table.add_column("Total", justify="center")
+    table.add_column("Passed", justify="center", style="green")
+    table.add_column("Failed", justify="center", style="red")
+    table.add_column("Flaky", justify="center", style="yellow")
+    table.add_column("Errors", justify="center", style="bold red")
+    table.add_column("Pending Review", justify="center", style="cyan")
+    table.add_column("Duration (ms)", justify="right")
+
+    table.add_row(
+        str(len(report.verdicts)),
+        str(report.pass_count),
+        str(report.fail_count),
+        str(report.flaky_count),
+        str(report.error_count),
+        str(report.pending_count),
+        str(report.duration_ms),
+    )
+    target_console.print(table)
+
+
 def load_test_cases_from_file(file_path: Path) -> list[TestCase]:
     """Load test cases from a YAML or JSON file."""
     if not file_path.exists():
@@ -111,8 +135,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         from sentinel.explorer import AutonomousExplorer
 
         explorer = AutonomousExplorer(target_config, run_config)
-        adapter_cls = get_adapter(target_config.target_type)
-        adapter = adapter_cls(target_config)
+        adapter = orchestrator.adapter or get_adapter(target_config.target_type, target_config=target_config)
         console.print(f"[cyan]Running Autonomous Explore Mode on {target_config.target_type}...[/cyan]")
         test_cases = explorer.explore(adapter)
         report, exit_code = orchestrator.run_tests(test_cases, report_format=args.format)
@@ -151,25 +174,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         report, exit_code = orchestrator.run_tests(test_cases, report_format=args.format)
 
     # Display results summary table
-    table = Table(title=f"Sentinel Run Summary: {report.run_id}")
-    table.add_column("Total", justify="center")
-    table.add_column("Passed", justify="center", style="green")
-    table.add_column("Failed", justify="center", style="red")
-    table.add_column("Flaky", justify="center", style="yellow")
-    table.add_column("Errors", justify="center", style="bold red")
-    table.add_column("Pending Review", justify="center", style="cyan")
-    table.add_column("Duration (ms)", justify="right")
-
-    table.add_row(
-        str(len(report.verdicts)),
-        str(report.pass_count),
-        str(report.fail_count),
-        str(report.flaky_count),
-        str(report.error_count),
-        str(report.pending_count),
-        str(report.duration_ms),
-    )
-    console.print(table)
+    print_report_summary(report)
 
     return exit_code
 
@@ -233,7 +238,10 @@ def cmd_review(args: argparse.Namespace) -> int:
         if not target_item:
             console.print(f"[red]Pending review for test_id '{args.resolve_id}' not found.[/red]")
             return 1
-        new_status = "pass" if args.as_pass else ("fail" if args.as_fail else "pass")
+        if not args.as_pass and not args.as_fail:
+            console.print("[bold red]Error: You must specify either --as-pass or --as-fail when resolving a review item.[/bold red]")
+            return 1
+        new_status = "pass" if args.as_pass else "fail"
         rationale = args.rationale or "Manual human resolution"
         store.record_human_resolution(
             test_id=args.resolve_id,
@@ -355,6 +363,11 @@ def main(argv: list[str] | None = None) -> int:
     dash_parser.add_argument("--port", type=int, default=8080, help="Web port (default 8080)")
     dash_parser.add_argument("--db", default="sentinel_memory.sqlite", help="Path to SQLite memory database")
 
+    # Studio / Desktop command
+    studio_parser = subparsers.add_parser("studio", aliases=["desktop"], help="Launch Sentinel Studio Desktop QA Platform")
+    studio_parser.add_argument("--port", type=int, default=8765, help="Daemon port (default 8765)")
+    studio_parser.add_argument("--browser", action="store_true", help="Force launch in browser instead of native window")
+
     # Init command
     init_parser = subparsers.add_parser("init", help="Initialize sentinel.config.yaml")
     init_parser.add_argument("--force", action="store_true", help="Overwrite existing configuration file")
@@ -370,6 +383,11 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_plan(args)
     if args.subcommand == "review":
         return cmd_review(args)
+    if args.subcommand in ("studio", "desktop"):
+        from sentinel.studio.launcher import launch_studio
+        console.print(f"[bold cyan]Launching Sentinel Studio Desktop on port {args.port}...[/bold cyan]")
+        launch_studio(port=args.port, force_browser=args.browser)
+        return 0
     if args.subcommand == "dashboard":
         return cmd_dashboard(args)
     if args.subcommand == "init":

@@ -89,18 +89,19 @@ class DeterministicOracle(Oracle):
         class DotDict(dict):
             def __getattr__(self, name: str) -> Any:
                 if name in self:
-                    val = self[name]
-                    if isinstance(val, dict) and not isinstance(val, DotDict):
-                        return DotDict(val)
-                    return val
+                    return self[name]
                 return None
+
+        def wrap_dot_access(val: Any) -> Any:
+            if isinstance(val, dict):
+                return DotDict({k: wrap_dot_access(v) for k, v in val.items()})
+            if isinstance(val, list):
+                return [wrap_dot_access(item) for item in val]
+            return val
 
         context: dict[str, Any] = {}
         for k, v in raw_result.items():
-            if isinstance(v, dict):
-                context[k] = DotDict(v)
-            else:
-                context[k] = v
+            context[k] = wrap_dot_access(v)
 
         # Check JSON schema validity if schema is provided in step metadata
         schema_valid = True
@@ -159,7 +160,10 @@ class DeterministicOracle(Oracle):
 
         if isinstance(node, ast.Attribute):
             obj_val, _ = self._eval_node(node.value, context)
-            val = getattr(obj_val, node.attr, None)
+            if isinstance(obj_val, dict) and node.attr in obj_val:
+                val = obj_val[node.attr]
+            else:
+                val = getattr(obj_val, node.attr, None)
             return val, val
 
         if isinstance(node, ast.Subscript):

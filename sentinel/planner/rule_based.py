@@ -196,12 +196,14 @@ class RuleBasedPlanner(Planner):
                     tags=["crud_checklist", "coverage"],
                 )
             )
+            scenario_idx += 1
+
         # Sort scenarios by priority (critical -> high -> medium -> low)
         priority_rank = {"critical": 0, "high": 1, "medium": 2, "low": 3}
         scenarios.sort(key=lambda s: priority_rank.get(s.priority, 2))
 
         return TestPlan(
             project_id=target_model.name or "api-project",
-            target_type="api",
+            target_type=target_model.target_type or "api",
             scenarios=scenarios,
         )
